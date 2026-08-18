@@ -1,0 +1,487 @@
+/** Shared engine types. The League object is plain JSON-serializable data. */
+
+export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP';
+export type Bats = 'L' | 'R' | 'S';
+export type Phase = 'draft' | 'regular' | 'playoffs' | 'offseason';
+
+export type RatingKey = 'con' | 'pow' | 'eye' | 'spd' | 'fld' | 'arm' | 'stuff' | 'ctl' | 'mov' | 'stam';
+export type Ratings = Record<RatingKey, number>;
+
+export interface HitStats {
+  g: number; pa: number; ab: number; h: number; d: number; t: number; hr: number;
+  bb: number; k: number; r: number; rbi: number; sb: number; cs: number;
+}
+
+export interface PitStats {
+  g: number; gs: number; outs: number; h: number; hr: number; er: number;
+  bb: number; k: number; w: number; l: number; sv: number; bf: number;
+}
+
+export interface SeasonLogHit {
+  s: number; g: number; h: number; hr: number; rbi: number; avg: number; sb: number;
+}
+export interface SeasonLogPit {
+  s: number; ip: number; k: number; era: number; w: number; l: number; sv: number;
+}
+export type SeasonLogEntry = SeasonLogHit | SeasonLogPit;
+
+export type PlayerOrigin = 'pool' | 'class' | 'draft' | 'fa';
+
+export interface Player {
+  id: string;
+  name: string;
+  pos: Position;
+  age: number;
+  bats: Bats;
+  traits: string[];
+  r: Ratings;
+  ovr: number;
+  pot: number;
+  /** 0..1 scouting progress; 1 = fully known */
+  scouted: number;
+  salary: number;
+  years: number;
+  morale: number;
+  cond: number;
+  injured: number;
+  st: HitStats;
+  pst: PitStats;
+  origin: PlayerOrigin;
+  teamId?: string | null;
+  trueOvr?: number;
+  expiring?: boolean;
+  seasonLog?: SeasonLogEntry[];
+  /** development fractional accumulator */
+  _acc?: number;
+  /** in-game pitcher fatigue (transient, reset after each game) */
+  gFat?: number;
+  /** batters faced this game (transient) */
+  bfGame?: number;
+}
+
+export interface StaffRatings {
+  scout: number;
+  coach: number;
+  trainer: number;
+  analyst: number;
+}
+
+export interface Strategy {
+  patience: number;
+  aggression: number;
+  bullpenHook: number;
+}
+
+export interface ClassMods {
+  scoutSpeed: number;
+  draftVision: number;
+  fanTrustGain: number;
+  revenue: number;
+  prospectGrowth: number;
+  tradeValue: number;
+  clubhouse?: number;
+  sponsorValue?: number;
+  extraRounds?: number;
+  extraPick?: boolean;
+  latePen?: number;
+}
+
+export interface GMClass {
+  key: string;
+  name: string;
+  tag: string;
+  glyph: string;
+  blurb: string;
+  staff: StaffRatings;
+  bias: Partial<Ratings>;
+  perks: string[];
+  mods: ClassMods;
+  cash: number;
+  fanTrust: number;
+  strategy: Strategy;
+}
+
+export interface Vibe {
+  key: string;
+  name: string;
+  bg: [number, number, number];
+  bulb: [number, number, number];
+  grain: number;
+  bloom: number;
+  sweep: number;
+}
+
+export interface Trait {
+  key: string;
+  name: string;
+  desc: string;
+  eff: Record<string, number>;
+}
+
+export interface StadiumLevel {
+  cost: number;
+  note: string;
+  cap?: number;
+  att?: number;
+  con?: number;
+  spon?: number;
+  trust?: number;
+  rec?: number;
+  mor?: number;
+  dev?: number;
+}
+
+export type StadiumKey = 'seats' | 'lights' | 'food' | 'board' | 'clubhouse' | 'academy';
+
+export interface StadiumSpec {
+  key: StadiumKey;
+  name: string;
+  desc: string;
+  levels: StadiumLevel[];
+}
+
+export type SponsorKind = 'gate' | 'flat' | 'con' | 'win';
+
+/** Static sponsor definition. `check` lives here (in code), never serialized. */
+export interface SponsorSpec {
+  name: string;
+  kind: SponsorKind;
+  base: number;
+  req: string;
+  penalty?: { trust: number };
+}
+
+/** A sponsor deal held by a team. References the spec by name. */
+export interface SponsorDeal {
+  name: string;
+  kind: SponsorKind;
+  req: string;
+  /** season figure this deal pays (already multiplied at offer time) */
+  base: number;
+  weeks: number;
+  signedWeek: number;
+  paid: number;
+  met?: boolean;
+  penalty?: { trust: number };
+}
+
+export interface SponsorOffer {
+  name: string;
+  kind: SponsorKind;
+  base: number;
+  req: string;
+  offer: number;
+  weeks: number;
+  penalty?: { trust: number };
+}
+
+export interface ScenarioEffect {
+  cash?: number;
+  trust?: number;
+  morale?: number;
+  cond?: number;
+  fld?: number;
+  dev?: number;
+  att?: number;
+  strat?: number;
+  injRisk?: number;
+  scoutBoost?: number;
+  tradeOffer?: number;
+  rainRisk?: number;
+  riot?: number;
+  k?: number;
+}
+
+export interface ScenarioSide {
+  label: string;
+  eff: ScenarioEffect;
+  out: string;
+}
+
+export interface Scenario {
+  id: string;
+  tag: string;
+  title: string;
+  body: string;
+  left: ScenarioSide;
+  right: ScenarioSide;
+}
+
+export interface TrophySpec {
+  key: string;
+  name: string;
+  desc: string;
+  tier: number;
+}
+
+export interface TrophyWon {
+  key: string;
+  season: number;
+  week: number;
+}
+
+export type SkillKey = 'scout' | 'press' | 'deals' | 'farm' | 'ops';
+
+export interface ProgressStats {
+  wins: number;
+  sweeps: number;
+  walkoffs: number;
+  hrs: number;
+  grands: number;
+  triples: number;
+  steals: number;
+  kGames: number;
+  shutouts: number;
+  blowouts: number;
+  scouts: number;
+  desks: number;
+  drafts: number;
+  trades: number;
+  signs: number;
+  builds: number;
+  sponsors: number;
+}
+
+export interface WeekXpNote {
+  why: string;
+  n: number;
+}
+
+export interface TeamProgress {
+  xp: number;
+  level: number;
+  unspent: number;
+  skills: Record<SkillKey, number>;
+  achievements: string[];
+  stats: ProgressStats;
+  weekXp: number;
+  weekNotes: WeekXpNote[];
+  lastUnlocks: string[];
+}
+
+export interface AchievementSpec {
+  id: string;
+  name: string;
+  desc: string;
+  xp: number;
+  icon: string;
+  when: (team: Team) => boolean;
+}
+
+export interface WeekFinance {
+  att: number;
+  rev: number;
+  cost: number;
+  net: number;
+  gate?: number;
+  conc?: number;
+  merch?: number;
+  sponsor?: number;
+  payroll?: number;
+  sellout?: boolean;
+}
+
+export interface TeamHistory {
+  season: number;
+  w: number;
+  l: number;
+  rank: number;
+  cash: number;
+  champ: boolean;
+}
+
+export interface Team {
+  id: string;
+  slot: number;
+  city: string;
+  mascot: string;
+  name: string;
+  abbr: string;
+  cls: string;
+  color: string;
+  glyph: string;
+  vibe: string;
+  isHuman: boolean;
+  ownerId: string | null;
+  roster: Player[];
+  cash: number;
+  startCash: number;
+  fanTrust: number;
+  staff: StaffRatings;
+  stadium: Record<StadiumKey, number>;
+  ticket: number;
+  conPrice: number;
+  sponsors: SponsorDeal[];
+  sponsorOffers: SponsorOffer[];
+  trophies: TrophyWon[];
+  picks: unknown[];
+  w: number;
+  l: number;
+  rf: number;
+  ra: number;
+  streak: number;
+  rank: number;
+  wk: WeekFinance;
+  history: TeamHistory[];
+  strategy: Strategy;
+  ap: number;
+  apMax: number;
+  seasonHigh: Record<string, number>;
+  devPool: number;
+  scoutFocus: Position | null;
+  rotIdx?: number;
+  attBonus?: number;
+  devBonus?: number;
+  /** true while this club has an unresolved desk scenario blocking the week */
+  deskPending?: boolean;
+  /** GM progression; optional so older saves hydrate via ensureProgress() */
+  progress?: TeamProgress;
+}
+
+export interface DraftSlot {
+  round: number;
+  teamId: string;
+  extra?: boolean;
+}
+
+export interface SchedulePair {
+  home: string;
+  away: string;
+  games: number;
+}
+
+export interface LogEntry {
+  w?: number;
+  t?: string;
+  txt: string;
+  trophy?: string;
+  draft?: boolean;
+  round?: number;
+  teamId?: string;
+  playerId?: string;
+  trade?: boolean;
+}
+
+export interface PbpEvent {
+  t: string;
+  inn: number;
+  half: number;
+  b?: string;
+  k?: string;
+  big?: boolean;
+  txt: string;
+  /** outs after this event (0–3) */
+  outs?: number;
+  away?: number;
+  home?: number;
+  /** first, second, third occupied */
+  bases?: [boolean, boolean, boolean];
+}
+
+export interface GameResult {
+  ok: true;
+  homeRuns: number;
+  awayRuns: number;
+  homeId: string;
+  awayId: string;
+  winnerId: string;
+  loserId: string;
+  line: { home: (number | string)[]; away: (number | string)[] };
+  pbp: PbpEvent[];
+  innings: number;
+  walkoff: boolean;
+  wp: string;
+  lp: string;
+}
+
+export interface GameSummary {
+  homeId: string;
+  awayId: string;
+  homeRuns: number;
+  awayRuns: number;
+  winnerId: string;
+  innings: number;
+  walkoff: boolean;
+  wp: string;
+  lp: string;
+  line: { home: (number | string)[]; away: (number | string)[] };
+}
+
+export interface WeekOutcome {
+  week: number;
+  games: GameSummary[];
+  series: { homeId: string; awayId: string; hw: number; aw: number }[];
+  done?: boolean;
+}
+
+export interface MyPbp {
+  homeId: string;
+  awayId: string;
+  homeRuns: number;
+  awayRuns: number;
+  pbp: PbpEvent[];
+}
+
+export interface SeriesResult {
+  aId: string;
+  bId: string;
+  aw: number;
+  bw: number;
+  winnerId: string;
+}
+
+export interface Bracket {
+  semis: SeriesResult[];
+  final: SeriesResult | null;
+  champId: string | null;
+}
+
+export interface OffseasonReport {
+  retired: { teamId: string; name: string; age: number; ovr: number }[];
+  expiring: { teamId: string; id: string; name: string; ovr: number; ask: number }[];
+  season: number;
+}
+
+export interface League {
+  seed: number;
+  week: number;
+  season: number;
+  phase: Phase;
+  weeks: number;
+  gpw: number;
+  teams: Team[];
+  draftPool: Player[];
+  draftOrder: DraftSlot[];
+  draftIdx: number;
+  draftRounds: number;
+  freeAgents: Player[];
+  schedule: SchedulePair[][];
+  log: LogEntry[];
+  results: WeekOutcome[];
+  scenarioDeck: string[];
+  scenarioIdx: number;
+  /** next player id (serialized so ids never collide after reload) */
+  pid: number;
+  code?: string | null;
+  bracket?: Bracket | null;
+  offseasonReport?: OffseasonReport | null;
+  /** play-by-play for human games from the most recent week (transient-ish, serializable) */
+  myPbp?: MyPbp[];
+}
+
+export interface HumanConfig {
+  name: string;
+  city: string;
+  mascot: string;
+  cls: string;
+  color: string;
+  glyph: string;
+  vibe: string;
+}
+
+export interface ShownRating {
+  v: number;
+  lo: number;
+  hi: number;
+  exact: boolean;
+}

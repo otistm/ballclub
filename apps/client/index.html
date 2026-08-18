@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0A100E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="description" content="BALLCLUB — a shared-world baseball franchise sim.">
+<title>BALLCLUB</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%230A100E'/%3E%3Ccircle cx='16' cy='16' r='9' fill='%23F2F6F0'/%3E%3Cpath d='M9 10 Q13 16 9 22 M23 10 Q19 16 23 22' stroke='%23C43B2E' stroke-width='1.6' fill='none'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Barlow+Semi+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="shell"><div id="device">
+  <canvas id="gl"></canvas>
+  <div id="app" style="display:none">
+    <header id="marquee">
+      <div id="mqrow">
+        <div id="crest"></div>
+        <canvas id="mq"></canvas>
+        <div id="mqmeta">
+          <div class="mq-ap" id="apdots"></div>
+          <div class="mq-lab" id="aplab">actions</div>
+        </div>
+      </div>
+    </header>
+    <main id="views"></main>
+    <nav id="tabs"></nav>
+  </div>
+  <div id="onboard"></div>
+  <div id="scrim"></div>
+  <div id="sheet"><div id="grab"><i></i></div><div id="sheetbody"></div></div>
+  <div id="broadcast" aria-hidden="true">
+    <div id="bc-stage">
+      <div id="bc-match"></div>
+      <div id="bc-board">
+        <div class="bc-side" id="bc-away"></div>
+        <div id="bc-mid">
+          <div id="bc-inn"></div>
+          <div id="bc-diamond">
+            <i class="bag b2" data-bag="2"></i>
+            <i class="bag b3" data-bag="3"></i>
+            <i class="bag b1" data-bag="1"></i>
+            <i class="bag home"></i>
+          </div>
+          <div id="bc-outs"><i></i><i></i><i></i></div>
+        </div>
+        <div class="bc-side" id="bc-home"></div>
+      </div>
+      <div id="bc-call"><div class="lab"></div><div class="txt"></div></div>
+      <div id="bc-feed"></div>
+    </div>
+    <div id="bc-bar">
+      <button class="bc-btn" data-act="bcspeed" id="bc-speed">1×</button>
+      <button class="bc-btn" data-act="bchl" id="bc-hl">ALL PLAYS</button>
+      <button class="bc-btn" data-act="bcskipg">NEXT GAME</button>
+      <button class="bc-btn primary" data-act="bcskip">SKIP TO RECEIPT</button>
+    </div>
+  </div>
+  <div id="printer" aria-hidden="true">
+    <div id="printer-bezel">
+      <div class="pb-row">
+        <div class="pb-id"><i class="pb-led"></i><span>PRESS BOX</span></div>
+        <div class="pb-model">MODEL 9-PIN</div>
+      </div>
+      <div class="pb-slot"><i></i></div>
+    </div>
+    <div id="receipt-well">
+      <div id="receipt-feed">
+        <div id="print-head"></div>
+        <div id="receipt-paper"></div>
+      </div>
+    </div>
+  </div>
+  <div id="toasts"></div>
+</div></div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>

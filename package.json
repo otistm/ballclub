@@ -1,0 +1,24 @@
+{
+  "name": "ballclub",
+  "private": true,
+  "version": "0.1.0",
+  "description": "BALLCLUB - a shared-world baseball franchise sim",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @ballclub/client",
+    "dev:server": "npm run dev -w @ballclub/server",
+    "build": "npm run build -w @ballclub/engine && npm run build -w @ballclub/client && npm run build -w @ballclub/server",
+    "test": "npm run test -w @ballclub/engine",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "smoke": "node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright": "^1.62.1"
+  }
+}

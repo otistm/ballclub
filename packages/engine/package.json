@@ -1,0 +1,23 @@
+{
+  "name": "@ballclub/engine",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "BALLCLUB deterministic game engine - pure logic, no DOM. Runs in browser and on server.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^4.1.10"
+  }
+}
