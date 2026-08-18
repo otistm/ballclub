@@ -131,10 +131,17 @@ function rcptRow(left: string, right = '', kind = ''): string {
   return `<div class="rcpt-row${kind ? ' ' + kind : ''}"><span>${esc(left)}</span><span>${esc(right)}</span></div>`;
 }
 
-export function seriesRecap(games: GameSummary[], pbps: MyPbp[], wins: number): void {
+export function seriesRecap(
+  games: GameSummary[],
+  pbps: MyPbp[],
+  wins: number,
+  opts?: { week?: number; archive?: boolean }
+): void {
   const L = store.league!;
   const me = store.me;
   const w = me.wk;
+  const week = opts?.week ?? L.week;
+  const archive = !!opts?.archive;
   const losses = games.length - wins;
   const headline = wins > losses ? 'SERIES WON' : wins === losses ? 'SERIES SPLIT' : 'SERIES LOST';
   const stamp = wins > losses ? 'FILE' : wins === losses ? 'HOLD' : 'SEE BOARD';
@@ -145,7 +152,7 @@ export function seriesRecap(games: GameSummary[], pbps: MyPbp[], wins: number): 
       <div class="rcpt-brand">BALLCLUB</div>
       <div class="rcpt-meta">PRESS BOX COPY</div>
       ${rcptRow('CLUB', me.abbr)}
-      ${rcptRow('YEAR ' + L.season, 'WEEK ' + L.week + ' OF ' + L.weeks)}
+      ${rcptRow('YEAR ' + L.season, 'WEEK ' + week + ' OF ' + L.weeks)}
       <div class="rcpt-rule"></div>
       <div class="rcpt-head">${esc(headline)}</div>
       ${rcptRow('GAMES', wins + '-' + losses)}
@@ -177,29 +184,31 @@ export function seriesRecap(games: GameSummary[], pbps: MyPbp[], wins: number): 
     });
   }
 
-  s += `<div class="rcpt-rule"></div>
-    <div class="rcpt-sec">THE GATE</div>
-    ${rcptRow('ATTENDANCE', (w.att || 0).toLocaleString() + (w.sellout ? ' *' : ''))}
-    ${rcptRow('TICKETS', M(w.gate || 0))}
-    ${rcptRow('CONCESSIONS', M(w.conc || 0))}
-    ${rcptRow('MERCH', M(w.merch || 0))}
-    ${rcptRow('SPONSORS', M(w.sponsor || 0))}
-    <div class="rcpt-dots"></div>
-    ${rcptRow('PAYROLL', '-' + M(w.payroll || 0))}
-    ${rcptRow('STAFF/UPKEEP', '-' + M((w.cost || 0) - (w.payroll || 0)))}
-    <div class="rcpt-rule dbl"></div>
-    ${rcptRow('NET', (w.net >= 0 ? '+' : '') + M(w.net || 0), w.net >= 0 ? 'pos' : 'neg')}
-    ${w.sellout ? `<div class="rcpt-note">* SELLOUT</div>` : ''}`;
-
-  const notes = me.progress?.weekNotes || [];
-  const weekXp = me.progress?.weekXp || 0;
-  if (weekXp || notes.length) {
+  if (!archive) {
     s += `<div class="rcpt-rule"></div>
-      <div class="rcpt-sec">THE LEDGER</div>
-      ${notes.map((n) => rcptRow(n.why.toUpperCase(), '+' + n.n)).join('')}
+      <div class="rcpt-sec">THE GATE</div>
+      ${rcptRow('ATTENDANCE', (w.att || 0).toLocaleString() + (w.sellout ? ' *' : ''))}
+      ${rcptRow('TICKETS', M(w.gate || 0))}
+      ${rcptRow('CONCESSIONS', M(w.conc || 0))}
+      ${rcptRow('MERCH', M(w.merch || 0))}
+      ${rcptRow('SPONSORS', M(w.sponsor || 0))}
       <div class="rcpt-dots"></div>
-      ${rcptRow('WEEK XP', '+' + weekXp, 'pos')}
-      ${rcptRow('GM', String(me.progress?.level || 1))}`;
+      ${rcptRow('PAYROLL', '-' + M(w.payroll || 0))}
+      ${rcptRow('STAFF/UPKEEP', '-' + M((w.cost || 0) - (w.payroll || 0)))}
+      <div class="rcpt-rule dbl"></div>
+      ${rcptRow('NET', (w.net >= 0 ? '+' : '') + M(w.net || 0), w.net >= 0 ? 'pos' : 'neg')}
+      ${w.sellout ? `<div class="rcpt-note">* SELLOUT</div>` : ''}`;
+
+    const notes = me.progress?.weekNotes || [];
+    const weekXp = me.progress?.weekXp || 0;
+    if (weekXp || notes.length) {
+      s += `<div class="rcpt-rule"></div>
+        <div class="rcpt-sec">THE LEDGER</div>
+        ${notes.map((n) => rcptRow(n.why.toUpperCase(), '+' + n.n)).join('')}
+        <div class="rcpt-dots"></div>
+        ${rcptRow('WEEK XP', '+' + weekXp, 'pos')}
+        ${rcptRow('GM', String(me.progress?.level || 1))}`;
+    }
   }
 
   s += `
@@ -349,5 +358,142 @@ export function dugoutSheet(key: DugoutKey): void {
       <p style="font-size:15px;line-height:1.45;margin-top:6px">${esc(info.why)}</p>
     </div>
     <p class="faint" style="font-size:13px;margin-top:12px;line-height:1.4">Drag the slider on the Roster tab to change it. Desk cards can nudge this for one series.</p>`;
+  openSheet(s);
+}
+
+/** Own club: past series list → receipt. */
+export function mySeriesSheet(): void {
+  const L = store.league!;
+  const me = store.me;
+  const rows: { week: number; homeId: string; awayId: string; hw: number; aw: number }[] = [];
+  L.results.forEach((w) => {
+    w.series.forEach((sr) => {
+      if (sr.homeId === me.id || sr.awayId === me.id) {
+        rows.push({ week: w.week, ...sr });
+      }
+    });
+  });
+  rows.reverse();
+
+  let s = `<div class="eyebrow">Your tape <b>year ${L.season}</b></div>
+    <h2 style="margin-bottom:6px">${esc(me.name)}</h2>
+    <p class="faint" style="font-size:13px;line-height:1.4;margin-bottom:12px">Every series you have played. Tap one for the press-box receipt.</p>`;
+
+  if (!rows.length) {
+    s += `<div class="empty"><h3>No series yet</h3><p>Play a week from the Club tab and the tape starts here.</p></div>`;
+    openSheet(s);
+    return;
+  }
+
+  s += `<div class="panel" style="padding-top:2px">`;
+  rows.forEach((sr) => {
+    const home = sr.homeId === me.id;
+    const opp = L.teams.find((t) => t.id === (home ? sr.awayId : sr.homeId))!;
+    const mine = home ? sr.hw : sr.aw;
+    const theirs = home ? sr.aw : sr.hw;
+    const tag = mine > theirs ? 'win' : mine < theirs ? 'loss' : '';
+    const label = mine > theirs ? 'WON' : mine < theirs ? 'LOST' : 'SPLIT';
+    s += `<div class="res tap ${tag}" data-act="openseries" data-week="${sr.week}" data-home="${sr.homeId}" data-away="${sr.awayId}">
+      <div class="sc">${mine}</div><div class="vs">${home ? 'vs' : '@'}</div><div class="sc">${theirs}</div>
+      <div class="nm">${esc(opp.name)}</div>
+      <div class="vs">W${sr.week} · ${label}</div>
+    </div>`;
+  });
+  s += `</div>`;
+  openSheet(s);
+}
+
+/** Rival club: game-by-game list → box score. */
+export function teamGamesSheet(teamId: string): void {
+  const L = store.league!;
+  const team = L.teams.find((t) => t.id === teamId);
+  if (!team) return;
+
+  const rows: { week: number; i: number; gm: GameSummary }[] = [];
+  L.results.forEach((w) => {
+    w.games.forEach((gm, i) => {
+      if (gm.homeId === teamId || gm.awayId === teamId) rows.push({ week: w.week, i, gm });
+    });
+  });
+  rows.reverse();
+
+  let s = `<div class="eyebrow">Club tape <b>${esc(team.abbr)}</b></div>
+    <h2 style="margin-bottom:6px">${esc(team.name)}</h2>
+    <p class="faint" style="font-size:13px;line-height:1.4;margin-bottom:12px">Past games this season. Tap a score for the box.</p>`;
+
+  if (!rows.length) {
+    s += `<div class="empty"><h3>No games yet</h3><p>The schedule has not started for them.</p></div>`;
+    openSheet(s);
+    return;
+  }
+
+  s += `<div class="panel" style="padding-top:2px">`;
+  rows.forEach((row) => {
+    const { gm, week, i } = row;
+    const home = gm.homeId === teamId;
+    const my = home ? gm.homeRuns : gm.awayRuns;
+    const th = home ? gm.awayRuns : gm.homeRuns;
+    const opp = L.teams.find((t) => t.id === (home ? gm.awayId : gm.homeId))!;
+    const won = gm.winnerId === teamId;
+    s += `<div class="res tap ${won ? 'win' : 'loss'}" data-act="gamebox" data-week="${week}" data-i="${i}">
+      <div class="sc">${my}</div><div class="vs">${home ? 'vs' : '@'}</div><div class="sc">${th}</div>
+      <div class="nm">${esc(opp.abbr)} <span class="faint">${esc(opp.mascot)}</span></div>
+      <div class="vs">W${week}${gm.walkoff ? ' · WO' : gm.innings > 9 ? ' · ' + gm.innings + 'INN' : ''}</div>
+    </div>`;
+  });
+  s += `</div>`;
+  openSheet(s);
+}
+
+/** Single-game line score. */
+export function gameBoxSheet(week: number, gameIndex: number): void {
+  const L = store.league!;
+  const outcome = L.results.find((w) => w.week === week);
+  const gm = outcome?.games[gameIndex];
+  if (!gm) return;
+  const home = L.teams.find((t) => t.id === gm.homeId)!;
+  const away = L.teams.find((t) => t.id === gm.awayId)!;
+  const innings = Math.max(gm.line?.home?.length || 0, gm.line?.away?.length || 0, gm.innings || 9);
+  const cells = (arr: (number | string)[] | undefined): string => {
+    const a = arr || [];
+    let out = '';
+    for (let i = 0; i < innings; i++) {
+      const v = a[i];
+      out += `<td>${v === undefined || v === null ? '' : esc(String(v))}</td>`;
+    }
+    return out;
+  };
+  const heads = Array.from({ length: innings }, (_, i) => `<th>${i + 1}</th>`).join('');
+  const flag = gm.walkoff ? 'Walk-off' : gm.innings > 9 ? gm.innings + ' innings' : 'Final';
+
+  let s = `<div class="eyebrow">Box score <b>week ${week}</b></div>
+    <h2 style="margin-bottom:4px">${esc(away.abbr)} @ ${esc(home.abbr)}</h2>
+    <p class="faint" style="font-size:13px;margin-bottom:12px">${esc(flag)}</p>
+    <div class="panel">
+      <div class="boxscore-final">
+        <div class="bs-side">
+          <div class="bs-abbr" style="color:${away.color}">${esc(away.abbr)}</div>
+          <div class="bs-runs">${gm.awayRuns}</div>
+        </div>
+        <div class="bs-at">@</div>
+        <div class="bs-side">
+          <div class="bs-abbr" style="color:${home.color}">${esc(home.abbr)}</div>
+          <div class="bs-runs">${gm.homeRuns}</div>
+        </div>
+      </div>
+      <div class="boxscore-scroll">
+        <table class="boxline">
+          <thead><tr><th></th>${heads}<th>R</th></tr></thead>
+          <tbody>
+            <tr><td>${esc(away.abbr)}</td>${cells(gm.line?.away)}<td class="r">${gm.awayRuns}</td></tr>
+            <tr><td>${esc(home.abbr)}</td>${cells(gm.line?.home)}<td class="r">${gm.homeRuns}</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="hairline"></div>
+      <div class="kv"><span class="k">Winner</span><b>${esc((L.teams.find((t) => t.id === gm.winnerId) || home).abbr)}</b></div>
+      ${gm.wp ? `<div class="kv"><span class="k">Winning pitcher</span><b>${esc(gm.wp)}</b></div>` : ''}
+      ${gm.lp ? `<div class="kv"><span class="k">Losing pitcher</span><b>${esc(gm.lp)}</b></div>` : ''}
+    </div>`;
   openSheet(s);
 }

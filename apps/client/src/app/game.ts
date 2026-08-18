@@ -23,7 +23,7 @@ import { viewRoster, rosterGroups } from '../views/roster.js';
 import { viewMarket, boardOrder } from '../views/market.js';
 import { viewPark, projectRevenue } from '../views/park.js';
 import { viewLeague } from '../views/league.js';
-import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet, staffSheet, dugoutSheet, type DugoutKey } from '../views/sheets.js';
+import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet, staffSheet, dugoutSheet, mySeriesSheet, teamGamesSheet, gameBoxSheet, type DugoutKey } from '../views/sheets.js';
 import { meFog } from '../views/helpers.js';
 import {
   startBroadcast, skipBroadcast, skipBroadcastGame,
@@ -981,6 +981,37 @@ export function handle(act: string, d: DOMStringMap): void {
       }
       haptic.ok();
       startBroadcast({ games, pbps, onDone: () => render() });
+      break;
+    }
+    case 'standingteam': {
+      const id = d.id!;
+      if (id === me.id) mySeriesSheet();
+      else teamGamesSheet(id);
+      haptic.tap();
+      break;
+    }
+    case 'openseries': {
+      const week = +(d.week || 0);
+      const homeId = d.home!;
+      const awayId = d.away!;
+      const outcome = L.results.find((w) => w.week === week);
+      if (!outcome) break;
+      const games = outcome.games.filter((g) => g.homeId === homeId && g.awayId === awayId);
+      if (!games.length) break;
+      let wins = 0;
+      games.forEach((gm) => { if (gm.winnerId === me.id) wins++; });
+      const last = L.results[L.results.length - 1];
+      const pbps = (last && last.week === week) ? matchPbps(games, L.myPbp || []) : matchPbps(games, []);
+      const live = last && last.week === week && L.phase === 'regular';
+      haptic.ok();
+      seriesRecap(games, pbps, wins, { week, archive: !live });
+      break;
+    }
+    case 'gamebox': {
+      const week = +(d.week || 0);
+      const i = +(d.i || 0);
+      gameBoxSheet(week, i);
+      haptic.tap();
       break;
     }
     case 'achieve': {
