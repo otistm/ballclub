@@ -123,7 +123,10 @@ export function render(): void {
   if (store.view === 'club' && store.me.deskPending && L.phase === 'regular') wireScenarioDeck();
   if (store.view === 'market' && L.phase === 'draft') wireDraftDeck();
   if (store.view === 'park') wireSliders();
-  if (store.view === 'roster') wireRosterStrategy();
+  if (store.view === 'roster') {
+    wireRosterStrategy();
+    wireRosterSort();
+  }
   wireLongPress();
 }
 
@@ -293,6 +296,19 @@ function playSeries(): void {
 }
 
 /* ---------- draft flow ---------- */
+/** Blocks ghost clicks after a swipe from also hitting Take / Next. */
+let draftBusy = false;
+let draftBusyGen = 0;
+
+function armDraftBusy(ms = 800): void {
+  const gen = ++draftBusyGen;
+  draftBusy = true;
+  swallowClick(ms);
+  window.setTimeout(() => {
+    if (gen === draftBusyGen) draftBusy = false;
+  }, ms);
+}
+
 function formatAutoPicks(picks: AutoPick[] | undefined): string[] {
   if (!picks || !picks.length) return [];
   const L = store.league!;
@@ -312,6 +328,7 @@ function cycleProspect(): void {
 }
 
 function doDraft(id: string): void {
+  armDraftBusy();
   const L = store.league!;
   const r = store.dispatch({ t: 'draftPick', teamId: store.me.id, playerId: id });
   if (!r.ok || !r.pick || !r.pick.player) {
@@ -353,7 +370,7 @@ function wireDraftDeck(): void {
       anime.set(sL, { opacity: dx < 0 ? p : 0 });
     },
     onEnd(dx, _dy, _vx, axis) {
-      if (fired) return;
+      if (fired || draftBusy) return;
       if (axis === 'y') {
         anime({ targets: top, translateY: 0, duration: 320, easing: 'easeOutQuart' });
         return;
@@ -362,7 +379,7 @@ function wireDraftDeck(): void {
       const next = dx < -100;
       if (take) {
         fired = true;
-        swallowClick();
+        armDraftBusy();
         haptic.big();
         anime({
           targets: top, translateX: 480, rotate: 20, opacity: 0, duration: 320, easing: 'easeInQuad',
@@ -370,7 +387,7 @@ function wireDraftDeck(): void {
         });
       } else if (next) {
         fired = true;
-        swallowClick();
+        armDraftBusy();
         haptic.tap();
         anime({
           targets: top, translateX: -480, rotate: -20, opacity: 0, duration: 300, easing: 'easeInQuad',
@@ -414,16 +431,121 @@ function wireRosterStrategy(): void {
   });
 }
 
-function reorderIds(ids: string[], id: string, dir: 'up' | 'down'): string[] {
-  const i = ids.indexOf(id);
-  if (i < 0) return ids;
-  const j = dir === 'up' ? i - 1 : i + 1;
-  if (j < 0 || j >= ids.length) return ids;
-  const next = ids.slice();
-  const tmp = next[i];
-  next[i] = next[j];
-  next[j] = tmp;
-  return next;
+/** Drag-to-reorder batting order / starters with anime gaps. */
+function wireRosterSort(): void {
+  const root = document.querySelector('#roster-sort') as HTMLElement | null;
+  if (!root) return;
+  const mode = root.dataset.mode;
+  if (mode !== 'lineup' && mode !== 'rotation') return;
+  const wraps = Array.from(root.querySelectorAll<HTMLElement>('.prow-wrap[data-sortable]'));
+  if (wraps.length < 2) return;
+
+  const me = store.me;
+  let lifting = false;
+  let fromIdx = -1;
+  let toIdx = -1;
+  let rowH = 0;
+  let bases: number[] = [];
+
+  const clearTransforms = (): void => {
+    wraps.forEach((w) => {
+      anime.remove(w);
+      w.style.transform = '';
+      w.classList.remove('dragging');
+    });
+  };
+
+  const shiftSiblings = (from: number, to: number): void => {
+    wraps.forEach((w, i) => {
+      if (i === from) return;
+      let shift = 0;
+      if (from < to && i > from && i <= to) shift = -rowH;
+      if (from > to && i >= to && i < from) shift = rowH;
+      if (reduceMotion) {
+        w.style.transform = shift ? 'translateY(' + shift + 'px)' : '';
+      } else {
+        anime.remove(w);
+        anime({
+          targets: w,
+          translateY: shift,
+          duration: 200,
+          easing: 'easeOutCubic'
+        });
+      }
+    });
+  };
+
+  wraps.forEach((wrap, index) => {
+    drag(wrap, {
+      axis: 'y',
+      onMove: (_dx, dy, axis) => {
+        if (axis !== 'y') return;
+        if (!lifting) {
+          lifting = true;
+          fromIdx = index;
+          toIdx = index;
+          rowH = wrap.offsetHeight || 48;
+          bases = wraps.map((w) => w.offsetTop);
+          wrap.classList.add('dragging');
+          haptic.select();
+          if (!reduceMotion) {
+            anime({ targets: wrap, scale: 1.03, duration: 140, easing: 'easeOutQuad' });
+          }
+        }
+        const scale = reduceMotion ? 1 : 1.03;
+        wrap.style.transform = 'translateY(' + dy + 'px) scale(' + scale + ')';
+
+        const mid = bases[fromIdx] + dy + rowH / 2;
+        let next = fromIdx;
+        for (let i = 0; i < wraps.length; i++) {
+          if (i === fromIdx) continue;
+          const c = bases[i] + rowH / 2;
+          if (fromIdx < i && mid > c) next = i;
+          if (fromIdx > i && mid < c) next = i;
+        }
+        if (next !== toIdx) {
+          toIdx = next;
+          haptic.light();
+          shiftSiblings(fromIdx, toIdx);
+        }
+      },
+      onEnd: (_dx, _dy, _vx, axis) => {
+        if (!lifting || axis !== 'y') {
+          lifting = false;
+          clearTransforms();
+          return;
+        }
+        swallowClick();
+        const moved = toIdx !== fromIdx;
+        const ids = wraps.map((w) => w.dataset.id!);
+        const sc = document.querySelector('.view.active') as HTMLElement | null;
+        const keepY = sc ? sc.scrollTop : 0;
+        if (moved) {
+          const item = ids.splice(fromIdx, 1)[0];
+          ids.splice(toIdx, 0, item);
+          if (mode === 'lineup') {
+            store.dispatch({ t: 'setLineup', teamId: me.id, ids });
+          } else {
+            store.dispatch({ t: 'setRotation', teamId: me.id, ids });
+          }
+          haptic.ok();
+        }
+        lifting = false;
+        fromIdx = -1;
+        toIdx = -1;
+        clearTransforms();
+        if (moved) {
+          render();
+          const after = document.querySelector('.view.active') as HTMLElement | null;
+          if (after) after.scrollTop = keepY;
+        }
+      },
+      onCancel: () => {
+        lifting = false;
+        clearTransforms();
+      }
+    });
+  });
 }
 
 /* ---------- park wiring ---------- */
@@ -682,15 +804,6 @@ export function handle(act: string, d: DOMStringMap): void {
       toast('Lineup', 'Back to the auto card.', '');
       render();
       break;
-    case 'lu-move': {
-      const { lu } = rosterGroups();
-      let ids = (me.lineupIds && me.lineupIds.length >= 9) ? me.lineupIds.slice() : lu.lineup.map((p) => p.id);
-      ids = reorderIds(ids, d.id!, (d.dir as 'up' | 'down') || 'up');
-      store.dispatch({ t: 'setLineup', teamId: me.id, ids });
-      haptic.tap();
-      render();
-      break;
-    }
     case 'rot-lock': {
       const { lu } = rosterGroups();
       store.dispatch({ t: 'setRotation', teamId: me.id, ids: lu.sps.slice(0, 5).map((p) => p.id) });
@@ -705,15 +818,6 @@ export function handle(act: string, d: DOMStringMap): void {
       toast('Rotation', 'Arms sorted by the house.', '');
       render();
       break;
-    case 'rot-move': {
-      const { lu } = rosterGroups();
-      let ids = (me.rotationIds && me.rotationIds.length) ? me.rotationIds.slice() : lu.sps.map((p) => p.id);
-      ids = reorderIds(ids, d.id!, (d.dir as 'up' | 'down') || 'up');
-      store.dispatch({ t: 'setRotation', teamId: me.id, ids });
-      haptic.tap();
-      render();
-      break;
-    }
     case 'market':
       UI.market = d.k as typeof UI.market;
       haptic.tap();
@@ -734,8 +838,18 @@ export function handle(act: string, d: DOMStringMap): void {
       } else resolveScenarioUI(d.k as 'left' | 'right');
       break;
     }
-    case 'drpass': cycleProspect(); haptic.tap(); render(); break;
-    case 'drtake': haptic.big(); doDraft(d.id!); break;
+    case 'drpass':
+      if (draftBusy) break;
+      armDraftBusy();
+      cycleProspect();
+      haptic.tap();
+      render();
+      break;
+    case 'drtake':
+      if (draftBusy) break;
+      haptic.big();
+      doDraft(d.id!);
+      break;
     case 'advdraft': {
       const r = store.dispatch({ t: 'advanceDraft' });
       setDraftDigest(null, r.autoPicks);

@@ -38,6 +38,7 @@ export function swallowClick(ms = 520): void {
   const block = (e: Event): void => {
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
     document.removeEventListener('click', block, true);
   };
   document.addEventListener('click', block, true);

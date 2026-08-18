@@ -100,8 +100,9 @@ export function viewDraft(): string {
           <div style="flex:1">${ratingBars(p)}</div>
           ${p.traits.length ? `<div class="pmeta" style="margin-top:10px">${p.traits.map((t) => { const T = TRAITS.find((x) => x.key === t); return T ? '<span class="amber">' + esc(T.name) + '</span>' : ''; }).join('')}</div>` : ''}
           <div class="dchoice">
-            <button data-act="drpass"><div class="ar">← left</div><div class="lb">Next name</div></button>
-            <button data-act="drtake" data-id="${p.id}"><div class="ar">right →</div><div class="lb">Take him</div></button>
+            ${i === 0 ? `<button data-act="drpass"><div class="ar">← left</div><div class="lb">Next name</div></button>
+            <button data-act="drtake" data-id="${p.id}"><div class="ar">right →</div><div class="lb">Take him</div></button>` : `<div><div class="ar">← left</div><div class="lb">Next name</div></div>
+            <div><div class="ar">right →</div><div class="lb">Take him</div></div>`}
           </div>
           <div class="stamp l">NEXT</div>
           <div class="stamp r">TAKE</div>

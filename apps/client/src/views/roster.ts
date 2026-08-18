@@ -80,21 +80,22 @@ export function viewRoster(): string {
     </div>`;
   }
 
-  s += `<div class="panel" style="padding-top:4px">`;
+  s += `<div class="panel roster-sort" id="roster-sort" data-mode="${UI.rosterFilter === 'rotation' ? 'rotation' : UI.rosterFilter === 'lineup' ? 'lineup' : ''}" style="padding-top:4px">`;
 
   if (!list.length) s += `<div class="empty"><h3>Nobody here</h3><p>Draft or sign somebody and they will show up.</p></div>`;
   list.forEach((p, i) => {
     const r = ids[p.id];
-    const editable = (UI.rosterFilter === 'lineup' && i < 9) || (UI.rosterFilter === 'rotation' && p.pos === 'SP');
-    s += `<div class="prow-wrap">${playerRow(p, M(p.salary), UI.rosterFilter === 'all' || UI.rosterFilter === 'bench' ? null : r ? r.role : null)}`;
-    if (editable) {
-      s += `<div class="rowacts">
-        <button class="chip sm" data-act="${UI.rosterFilter === 'lineup' ? 'lu-move' : 'rot-move'}" data-id="${p.id}" data-dir="up">▲</button>
-        <button class="chip sm" data-act="${UI.rosterFilter === 'lineup' ? 'lu-move' : 'rot-move'}" data-id="${p.id}" data-dir="down">▼</button>
-      </div>`;
-    }
+    const sortable =
+      (UI.rosterFilter === 'lineup' && i < 9) ||
+      (UI.rosterFilter === 'rotation' && p.pos === 'SP');
+    s += `<div class="prow-wrap${sortable ? ' sortable' : ''}"${sortable ? ` data-sortable="1" data-id="${p.id}"` : ''}>`;
+    s += playerRow(p, M(p.salary), UI.rosterFilter === 'all' || UI.rosterFilter === 'bench' ? null : r ? r.role : null);
     s += `</div>`;
   });
-  s += `</div><div class="faint" style="text-align:center;font-size:11px;font-family:var(--mono);letter-spacing:.1em">TAP A PLAYER FOR THE FULL CARD · HOLD FOR A PEEK</div>`;
+  const tip =
+    UI.rosterFilter === 'lineup' || UI.rosterFilter === 'rotation'
+      ? 'DRAG A NAME TO REORDER · TAP FOR THE FULL CARD'
+      : 'TAP A PLAYER FOR THE FULL CARD · HOLD FOR A PEEK';
+  s += `</div><div class="faint" style="text-align:center;font-size:11px;font-family:var(--mono);letter-spacing:.1em">${tip}</div>`;
   return s;
 }
