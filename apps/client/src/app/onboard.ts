@@ -6,7 +6,7 @@ import {
 import anime from '../ui/motion.js';
 import { $, esc } from '../ui/dom.js';
 import { haptic } from '../ui/ux.js';
-import { g, ic } from '../ui/icons.js';
+import { g, ic, mark } from '../ui/icons.js';
 import { M, hexToRgb } from '../ui/format.js';
 import { vibeSwatch } from '../ui/gl.js';
 import { backdrop, applyTeamColor } from './chrome.js';
@@ -89,7 +89,7 @@ export const OB = {
     if (OB.step === 2) {
       body = `<div class="eyebrow">Step two <b>your background</b></div>
         <h1>Where you<br>came from</h1>
-        <p class="dim" style="margin:10px 0 18px">This sets your staff, your starting six, and how the club plays before you touch a thing. Each background has its own badge.</p>
+        <p class="dim" style="margin:10px 0 18px">This sets your staff, your starting six, and how the club plays before you touch a thing.</p>
         ${CLASS_LIST.map((k) => {
           const c = CLASSES[k];
           return `<button class="classcard${k === d.cls ? ' on' : ''}" data-ob="cls" data-k="${k}" style="width:100%;text-align:left">
@@ -110,7 +110,6 @@ export const OB = {
     if (OB.step === 3) {
       body = `<div class="eyebrow">Step three <b>the colors</b></div>
         <h1>Pick a color</h1>
-        <p class="dim" style="margin:10px 0 4px">Drag the ring. The badge starts as the one that goes with ${esc(CLASSES[d.cls].name.toLowerCase())} — change it if you want.</p>
         <div id="wheelwrap">
           <canvas id="wheel" width="500" height="500" style="width:250px;height:250px"></canvas>
           <div id="wheelcrest">${g(d.glyph)}</div>
@@ -124,7 +123,7 @@ export const OB = {
       body = `<div class="eyebrow">Step four <b>the look</b></div>
         <h1>Set the mood</h1>
         <p class="dim" style="margin:10px 0 18px">Lighting for the whole app. Change it any time from the park.</p>
-        <div class="vibegrid">${Object.keys(VIBES).map((k) => {
+        <div class="vibegrid vibelist">${Object.keys(VIBES).map((k) => {
           const v = VIBES[k];
           return `<button class="vcell${k === d.vibe ? ' on' : ''}" data-ob="vibe" data-k="${k}">
             <canvas class="vsw" data-v="${k}" width="200" height="140"></canvas>
@@ -139,7 +138,10 @@ export const OB = {
         <h1>The paperwork</h1>
         <div class="panel paper" style="margin-top:16px">
           <div class="eyebrow">Club charter</div>
-          <div style="font-family:var(--dsp);font-size:29px;line-height:1;margin-bottom:12px">${esc(d.name).toUpperCase()}</div>
+          <div class="charter-club">
+            ${mark(d.glyph, d.color)}
+            <div class="charter-name">${esc(d.name).toUpperCase()}</div>
+          </div>
           <div class="hairline"></div>
           <div class="kv"><span class="k">General manager</span><b>${esc(c.name)}</b></div>
           <div class="kv"><span class="k">Opening cash</span><b>${M(c.cash)}</b></div>
@@ -165,6 +167,7 @@ export const OB = {
     }
 
     $('#onboard').classList.toggle('splash', OB.step === 0);
+    $('#onboard').classList.toggle('mood', OB.step === 4);
     $('#onboard').innerHTML = `<div id="obtop">${top}</div><div id="obbody">${body}</div><div id="obfoot">${foot}</div>`;
 
     if (OB.step === 0) {
@@ -185,8 +188,10 @@ export const OB = {
     }
     if (OB.step === 3) OB.wheel();
     if (OB.step === 4) {
-      document.querySelectorAll<HTMLCanvasElement>('.vsw').forEach((cv) => {
-        vibeSwatch(cv, VIBES[cv.dataset.v!], hexToRgb(d.color));
+      requestAnimationFrame(() => {
+        document.querySelectorAll<HTMLCanvasElement>('.vsw').forEach((cv) => {
+          vibeSwatch(cv, VIBES[cv.dataset.v!], hexToRgb(d.color));
+        });
       });
     }
     if (OB.step === 5) {
