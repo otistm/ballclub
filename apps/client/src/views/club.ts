@@ -193,7 +193,12 @@ export function viewClub(): string {
   if (feed.length) {
     s += `<div class="eyebrow">${L.phase === 'draft' ? 'Picked already' : 'Around the club'}</div><div class="panel feed">`;
     feed.forEach((f) => {
-      s += `<div class="fitem"><div class="w">${L.phase === 'draft' ? 'R' + (f.round || '-') : 'W' + (f.w || '-')}</div><div class="x">${esc(f.txt)}</div></div>`;
+      let txt = f.txt || '';
+      if (f.t) {
+        const club = L.teams.find((x) => x.id === f.t);
+        if (club && txt.indexOf(club.abbr) < 0) txt = club.abbr + ' · ' + txt;
+      }
+      s += `<div class="fitem"><div class="w">${L.phase === 'draft' ? 'R' + (f.round || '-') : 'W' + (f.w || '-')}</div><div class="x">${esc(txt)}</div></div>`;
     });
     s += `</div>`;
   }
