@@ -1,9 +1,9 @@
 /** Bottom-sheet content: player card, full draft board, series recap, playoffs, offseason. */
 import {
-  ROSTER_MAX, TRAITS, TROPHIES,
-  avg, draftCurrent, era, fmtIP, isPitcher, obp, shownOvr, slg, value,
+  ROSTER_MAX, STAFF_INFO, TRAITS, TROPHIES,
+  avg, draftCurrent, era, fmtIP, isPitcher, obp, shownOvr, slg, staffHireCost, value,
   type Bracket, type GameSummary, type MyPbp, type OffseasonReport, type PbpEvent,
-  type SeasonLogHit, type SeasonLogPit, type SeriesResult
+  type SeasonLogHit, type SeasonLogPit, type SeriesResult, type StaffRole
 } from '@ballclub/engine';
 import { esc, openSheet, printReceipt } from '../ui/dom.js';
 import { M, pctS } from '../ui/format.js';
@@ -262,12 +262,16 @@ export function offseasonSheet(rep: OffseasonReport | null): void {
     s += `<div class="eyebrow">Contracts up <b>${mineExp.length}</b></div><div class="panel" style="padding-top:4px">`;
     mineExp.forEach((p) => {
       const ask = Math.round((p.salary * 1.15) / 5000) * 5000;
-      s += `<div class="prow">
+      s += `<div class="prow" style="flex-wrap:wrap">
         <div class="ppos${isPitcher(p) ? ' p' : ''}">${p.pos}</div>
         <div class="pinfo"><div class="pname">${esc(p.name)}</div>
           <div class="pmeta"><span>${p.age}y</span><span>${p.ovr} ovr</span><span>asks ${M(ask)}</span></div></div>
-        <button class="chip" data-act="resign" data-id="${p.id}">Re-sign</button>
-        <button class="chip" data-act="letgo" data-id="${p.id}" style="margin-left:5px">Let go</button></div>`;
+        <div class="chiprow" style="width:100%;margin:6px 0 0;flex-wrap:wrap">
+          <button class="chip" data-act="resign" data-id="${p.id}" data-years="2">2 yr</button>
+          <button class="chip" data-act="resign" data-id="${p.id}" data-years="3">3 yr</button>
+          <button class="chip" data-act="resign" data-id="${p.id}" data-years="4">4 yr</button>
+          <button class="chip" data-act="letgo" data-id="${p.id}">Let go</button>
+        </div></div>`;
     });
     s += `</div>`;
   } else {
@@ -277,5 +281,29 @@ export function offseasonSheet(rep: OffseasonReport | null): void {
     <div class="kv"><span class="k">Cash</span><b>${M(me.cash)}</b></div>
     <div class="kv"><span class="k">Draft</span><b>${L.draftRounds} rounds, snake order</b></div></div>
     <button class="btn bulb" data-act="opendraft">Open the draft</button>`;
+  openSheet(s);
+}
+
+export function staffSheet(role: StaffRole): void {
+  const info = STAFF_INFO[role];
+  if (!info) return;
+  const me = store.me;
+  const lv = me.staff[role] || 0;
+  const cost = staffHireCost(me, role);
+  const can = me.cash >= cost && lv < 94;
+  let s = `<div class="eyebrow">The office <b>${esc(info.name)}</b></div>
+    <h2 style="margin-bottom:10px">${esc(info.name)}</h2>
+    <div class="kv"><span class="k">Rating</span><b>${lv}</b></div>
+    <div class="panel" style="margin-top:12px">
+      <div class="eyebrow">What they do</div>
+      <p style="font-size:15px;line-height:1.45;margin-top:6px">${esc(info.does)}</p>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Why hire up</div>
+      <p style="font-size:15px;line-height:1.45;margin-top:6px">${esc(info.why)}</p>
+    </div>
+    <button class="btn primary" style="margin-top:8px" data-act="hirestaff" data-k="${role}" ${can ? '' : 'disabled'}>
+      ${lv >= 94 ? 'Office is stacked' : can ? 'Hire · ' + M(cost) : 'Need ' + M(cost)}
+    </button>`;
   openSheet(s);
 }

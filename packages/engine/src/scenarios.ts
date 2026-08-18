@@ -3,6 +3,7 @@ import { CLASSES } from './data/classes.js';
 import { SCENARIOS } from './data/scenarios.js';
 import { ovr } from './player.js';
 import { noteOffice, pressMul, pressShield } from './progress.js';
+import { aiTradeOffer } from './trade.js';
 import type { League, Scenario, ScenarioSide, Team } from './types.js';
 
 export function nextScenario(league: League, _team: Team): Scenario | null {
@@ -50,6 +51,39 @@ export function resolveScenario(league: League, team: Team, choice: 'left' | 'ri
       const victim = pick(rng, team.roster);
       victim.injured = RI(rng, 1, 3);
       extra = victim.name + ' will miss ' + victim.injured + ' week(s).';
+    }
+  }
+  if (eff.rainRisk) {
+    team.rainRisk = clamp((team.rainRisk || 0) + eff.rainRisk * bad, 0, 1);
+  }
+  // next-series dugout overlays (consumed in playWeek)
+  if (eff.weekPatience || eff.weekAggression || eff.weekCond) {
+    const prev = team.weekBoost || {};
+    team.weekBoost = {
+      patience: (prev.patience || 0) + (eff.weekPatience || 0),
+      aggression: (prev.aggression || 0) + (eff.weekAggression || 0),
+      cond: (prev.cond || 0) + (eff.weekCond || 0)
+    };
+  }
+  if (eff.riot) {
+    const rng = mulberry32(league.seed + league.week * 103 + team.slot);
+    if (rng() < eff.riot * bad) {
+      const hit = Math.round(8 + rng() * 10);
+      team.fanTrust = clamp(team.fanTrust - hit, 1, 100);
+      extra = (extra ? extra + ' ' : '') + 'The park got ugly. Trust drops ' + hit + '.';
+    }
+  }
+  if (eff.tradeOffer) {
+    const offer = aiTradeOffer(league, team);
+    if (offer) {
+      team.pendingTrade = {
+        rivalId: offer.teamId,
+        give: [offer.wantId],
+        get: [offer.giveId]
+      };
+      const them = league.teams.find((t) => t.id === offer.teamId);
+      extra = (extra ? extra + ' ' : '') +
+        (them ? them.abbr : 'A rival') + ' is on the line. Check the market.';
     }
   }
   noteOffice(team, 'desks', 14, 'The desk');

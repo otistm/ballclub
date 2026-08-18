@@ -1,5 +1,5 @@
 /** App chrome: WebGL backdrop, scoreboard marquee, theme color, AP dots. */
-import { VIBES, draftStatus } from '@ballclub/engine';
+import { VIBES, draftStatus, stadiumVal } from '@ballclub/engine';
 import { Backdrop, createMarquee, type MarqueeApi } from '../ui/gl.js';
 import { g } from '../ui/icons.js';
 import { $ } from '../ui/dom.js';
@@ -26,7 +26,15 @@ export function applyTeamColor(hex: string): void {
 
 export function applyVibe(): void {
   const me = store.me;
-  if (backdrop.ok) backdrop.setVibe(VIBES[me.vibe] || VIBES.NIGHT, hexToRgb(me.color));
+  if (!backdrop.ok) return;
+  backdrop.setVibe(VIBES[me.vibe] || VIBES.NIGHT, hexToRgb(me.color));
+  const cap = stadiumVal(me, 'seats', 'cap', 9000);
+  const att = me.wk?.att || 0;
+  backdrop.setPark({
+    lights: me.stadium?.lights || 0,
+    board: me.stadium?.board || 0,
+    crowd: cap > 0 ? Math.min(1, att / cap) : 0.35
+  });
 }
 
 function marqueePages(): string[] {

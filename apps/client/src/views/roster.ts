@@ -1,4 +1,4 @@
-/** Roster view: payroll, role filters, player list. */
+/** Roster view: payroll, role filters, batting order / rotation controls. */
 import { ROSTER_MAX, buildLineup, type LineupPlan, type Player } from '@ballclub/engine';
 import { M } from '../ui/format.js';
 import { store } from '../app/store.js';
@@ -31,6 +31,10 @@ export function viewRoster(): string {
   else if (UI.rosterFilter === 'bench') list = me.roster.filter((p) => !ids[p.id]);
   else list.sort((a, b) => b.ovr - a.ovr);
 
+  const hook = Math.round((me.strategy.bullpenHook || 0.5) * 100);
+  const agg = Math.round((me.strategy.aggression || 0.5) * 100);
+  const pat = Math.round((me.strategy.patience || 0.5) * 100);
+
   let s = `<div class="eyebrow">Payroll <b>${me.roster.length}/${ROSTER_MAX} men</b></div>
     <div class="panel">
       <div class="kv"><span class="k">Season payroll</span><b>${M(payroll)}</b></div>
@@ -39,16 +43,48 @@ export function viewRoster(): string {
       <div class="hairline"></div>
       <div class="kv"><span class="k">Cash on hand</span><b class="${me.cash < 0 ? 'neg' : ''}" style="font-size:15px">${M(me.cash)}</b></div>
     </div>
+    <div class="eyebrow">The dugout <b>how you play</b></div>
+    <div class="panel">
+      <div class="kv"><span class="k">Patience</span><b class="num">${pat}</b></div>
+      <input type="range" min="5" max="95" value="${pat}" data-strat="pat" class="rslider"/>
+      <div class="kv"><span class="k">Green light</span><b class="num">${agg}</b></div>
+      <input type="range" min="5" max="95" value="${agg}" data-strat="agg" class="rslider"/>
+      <div class="kv"><span class="k">Bullpen hook</span><b class="num">${hook}</b></div>
+      <input type="range" min="5" max="95" value="${hook}" data-strat="hook" class="rslider"/>
+      <p class="faint" style="font-size:12px;line-height:1.4;margin-top:6px">Patience shapes the order. Green light steals and takes the extra base. The hook pulls the starter.</p>
+    </div>
     <div class="chiprow">
       ${([['lineup', 'Lineup'], ['rotation', 'Arms'], ['bench', 'Bench'], ['all', 'Everyone']] as const).map(([k, n]) =>
         `<button class="chip${UI.rosterFilter === k ? ' on' : ''}" data-act="rfilter" data-k="${k}">${n}</button>`).join('')}
-    </div>
-    <div class="panel" style="padding-top:4px">`;
+    </div>`;
+
+  if (UI.rosterFilter === 'lineup') {
+    s += `<div class="chiprow" style="margin-bottom:8px">
+      <button class="chip" data-act="lu-lock">Lock this nine</button>
+      <button class="chip" data-act="lu-auto">Auto order</button>
+    </div>`;
+  }
+  if (UI.rosterFilter === 'rotation') {
+    s += `<div class="chiprow" style="margin-bottom:8px">
+      <button class="chip" data-act="rot-lock">Lock starters</button>
+      <button class="chip" data-act="rot-auto">Auto arms</button>
+    </div>`;
+  }
+
+  s += `<div class="panel" style="padding-top:4px">`;
 
   if (!list.length) s += `<div class="empty"><h3>Nobody here</h3><p>Draft or sign somebody and they will show up.</p></div>`;
-  list.forEach((p) => {
+  list.forEach((p, i) => {
     const r = ids[p.id];
-    s += playerRow(p, M(p.salary), UI.rosterFilter === 'all' || UI.rosterFilter === 'bench' ? null : r ? r.role : null);
+    const editable = (UI.rosterFilter === 'lineup' && i < 9) || (UI.rosterFilter === 'rotation' && p.pos === 'SP');
+    s += `<div class="prow-wrap">${playerRow(p, M(p.salary), UI.rosterFilter === 'all' || UI.rosterFilter === 'bench' ? null : r ? r.role : null)}`;
+    if (editable) {
+      s += `<div class="rowacts">
+        <button class="chip sm" data-act="${UI.rosterFilter === 'lineup' ? 'lu-move' : 'rot-move'}" data-id="${p.id}" data-dir="up">▲</button>
+        <button class="chip sm" data-act="${UI.rosterFilter === 'lineup' ? 'lu-move' : 'rot-move'}" data-id="${p.id}" data-dir="down">▼</button>
+      </div>`;
+    }
+    s += `</div>`;
   });
   s += `</div><div class="faint" style="text-align:center;font-size:11px;font-family:var(--mono);letter-spacing:.1em">TAP A PLAYER FOR THE FULL CARD · HOLD FOR A PEEK</div>`;
   return s;

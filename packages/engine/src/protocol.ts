@@ -1,19 +1,26 @@
 /**
  * Wire protocol between client and league server.
  * The server is the ordering authority for a shared league: it assigns
- * sequence numbers to actions and relays them to every member, so all
- * clients replay an identical log.
+ * sequence numbers to actions and relays the ordered log to every member,
+ * plus presence heartbeats so idle GMs know who is away.
  */
 import type { GameAction, LoggedAction } from './actions.js';
 import type { HumanConfig } from './types.js';
 
 export const PROTOCOL_VERSION = 1;
 
+export interface PresenceBeat {
+  teamId: string;
+  lastSeen: number;
+}
+
 export type ClientMessage =
   | { t: 'create'; v: number; seed: number; human: HumanConfig; playerName: string }
   | { t: 'join'; v: number; code: string; playerName: string }
   | { t: 'action'; code: string; a: GameAction }
   | { t: 'sync'; code: string; from: number }
+  | { t: 'hello'; code: string; teamId: string }
+  | { t: 'heartbeat'; code: string; teamId: string }
   | { t: 'ping' };
 
 export type ServerMessage =
@@ -21,7 +28,7 @@ export type ServerMessage =
   | { t: 'joined'; code: string; seed: number; human: HumanConfig; log: LoggedAction[] }
   | { t: 'action'; code: string; entry: LoggedAction }
   | { t: 'sync'; code: string; log: LoggedAction[] }
-  | { t: 'presence'; code: string; members: number }
+  | { t: 'presence'; code: string; members: number; beats?: PresenceBeat[] }
   | { t: 'error'; msg: string }
   | { t: 'pong' };
 

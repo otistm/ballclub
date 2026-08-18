@@ -72,5 +72,17 @@ export const SCENARIOS: readonly Scenario[] = [
     body: 'Groundskeeper says the clay mix is wrong and has been wrong since April. Three players have rolled ankles.',
     left: { label: 'Live with it', eff: { injRisk: 0.12, cash: 0 }, out: 'Two more ankles by August.' },
     right: { label: 'Redo the infield', eff: { cash: -260000, cond: +12, fld: 2 }, out: 'True hops for the first time all year.' }
+  },
+  {
+    id: 'sc_greenlight', tag: 'DUGOUT', title: 'The green light',
+    body: 'Your third-base coach wants the runners going on contact all series. The catcher looks nervous.',
+    left: { label: 'Hold the bag', eff: { weekAggression: -0.18, weekPatience: 0.08 }, out: 'They stay put. You steal fewer bases and fewer outs.' },
+    right: { label: 'Green light', eff: { weekAggression: 0.22, weekCond: -5 }, out: 'Everyone is moving. Legs will be heavy by Sunday.' }
+  },
+  {
+    id: 'sc_take', tag: 'DUGOUT', title: 'Take until you get a strike',
+    body: 'The hitting coach wants a patient week. Free swingers hate the memo.',
+    left: { label: 'Swing free', eff: { weekPatience: -0.15, weekAggression: 0.1 }, out: 'Early counts. Loud contact. Some ugly Ks.' },
+    right: { label: 'Work the count', eff: { weekPatience: 0.2, weekCond: -3 }, out: 'Longer ABs. The bullpen warms earlier than you like.' }
   }
 ];

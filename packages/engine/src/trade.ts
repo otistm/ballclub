@@ -60,10 +60,10 @@ export interface TradeResult {
 }
 
 export function execTrade(
-  league: League, myTeam: Team, theirTeam: Team, myOut: Player[], theirOut: Player[]
+  league: League, myTeam: Team, theirTeam: Team, myOut: Player[], theirOut: Player[], force = false
 ): TradeResult {
   const ev = evalTrade(league, myTeam, theirTeam, myOut, theirOut);
-  if (!ev.accept) return { ok: false, ev };
+  if (!force && !ev.accept) return { ok: false, ev };
   myOut.forEach((p) => {
     myTeam.roster = myTeam.roster.filter((x) => x.id !== p.id);
     p.teamId = theirTeam.id;
@@ -82,6 +82,7 @@ export function execTrade(
     txt: myTeam.abbr + ' and ' + theirTeam.abbr + ' swap ' + (myOut.length + theirOut.length) + ' players'
   });
   noteOffice(myTeam, 'trades', 22, 'Trade');
+  if (theirTeam.isHuman) noteOffice(theirTeam, 'trades', 22, 'Trade');
   return { ok: true, ev };
 }
 

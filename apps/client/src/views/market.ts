@@ -137,7 +137,40 @@ export function viewTrade(): string {
   const theirOut = them.roster.filter((p) => UI.trade.theirs.indexOf(p.id) >= 0);
   const ev = myOut.length || theirOut.length ? evalTrade(L, me, them, myOut, theirOut) : null;
 
-  let s = `<div class="chiprow">${rivals.map((t) =>
+  let s = '';
+  if (me.inboxTrade) {
+    const ib = me.inboxTrade;
+    const from = L.teams.find((t) => t.id === ib.fromId);
+    const give = from?.roster.filter((p) => ib.give.indexOf(p.id) >= 0) || [];
+    const get = me.roster.filter((p) => ib.get.indexOf(p.id) >= 0);
+    s += `<div class="panel" style="margin-bottom:12px;border-color:rgba(255,180,60,.35)">
+      <div class="eyebrow">Fax from <b>${from ? esc(from.abbr) : 'a rival'}</b></div>
+      <p style="font-size:14px;line-height:1.4;margin-bottom:8px">
+        They send ${give.length ? give.map((p) => '<b>' + esc(p.name) + '</b>').join(', ') : 'nobody'};
+        you send ${get.length ? get.map((p) => '<b>' + esc(p.name) + '</b>').join(', ') : 'nobody'}.</p>
+      <div class="btn-row">
+        <button class="btn primary sm" data-act="inbox-yes">Accept</button>
+        <button class="btn ghost sm" data-act="inbox-no">Pass</button>
+      </div>
+    </div>`;
+  }
+  if (me.pendingTrade) {
+    const pt = me.pendingTrade;
+    const riv = L.teams.find((t) => t.id === pt.rivalId);
+    const give = me.roster.find((p) => p.id === pt.give[0]);
+    const get = riv?.roster.find((p) => p.id === pt.get[0]);
+    s += `<div class="panel" style="margin-bottom:12px;border-color:rgba(255,180,60,.35)">
+      <div class="eyebrow">Midnight call <b>${riv ? esc(riv.abbr) : 'rival'}</b></div>
+      <p style="font-size:14px;line-height:1.4;margin-bottom:10px">
+        They want ${give ? '<b>' + esc(give.name) + '</b>' : 'a man'} for ${get ? '<b>' + esc(get.name) + '</b>' : 'someone'}.</p>
+      <div class="btn-row">
+        <button class="btn primary sm" data-act="desk-trade-yes">Take the deal</button>
+        <button class="btn ghost sm" data-act="desk-trade-no">Hang up</button>
+      </div>
+    </div>`;
+  }
+
+  s += `<div class="chiprow">${rivals.map((t) =>
     `<button class="chip${t.id === UI.trade.rival ? ' on' : ''}" data-act="rival" data-k="${t.id}">${esc(t.abbr)}</button>`).join('')}</div>`;
 
   s += `<div class="panel" style="padding-bottom:6px">
@@ -172,10 +205,12 @@ export function viewTrade(): string {
         <div class="f ${bal < 0 ? 'bad' : ''}" style="${bal >= 0 ? 'left:50%;width:' + bal * 50 + '%' : 'left:' + (50 + bal * 50) + '%;width:' + -bal * 50 + '%'}"></div></div>
       <div style="flex:0 0 auto;text-align:right"><div class="mq-lab">You give</div><b class="num">${ev.myVal}</b></div>
     </div>
-    <p class="${ev.accept ? 'pos' : 'dim'}" style="text-align:center;margin-bottom:10px;font-size:14px">${esc(ev.verdict)}</p>
+    <p class="${them.isHuman ? 'dim' : (ev.accept ? 'pos' : 'dim')}" style="text-align:center;margin-bottom:10px;font-size:14px">${
+      them.isHuman ? 'They will see this on their fax machine.' : esc(ev.verdict)
+    }</p>
     <div class="btn-row">
       <button class="btn ghost" data-act="tclear">Clear</button>
-      <button class="btn primary" data-act="propose">Propose · 1 action</button>
+      <button class="btn primary" data-act="propose">${them.isHuman ? 'Fax the deal · 1 action' : 'Propose · 1 action'}</button>
     </div>`;
   } else {
     s += `<div class="empty"><p>Pick at least one player from either side to see what they think.</p></div>`;

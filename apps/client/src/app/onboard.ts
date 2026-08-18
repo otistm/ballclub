@@ -10,9 +10,10 @@ import { g, ic, mark } from '../ui/icons.js';
 import { M, hexToRgb } from '../ui/format.js';
 import { vibeSwatch } from '../ui/gl.js';
 import { backdrop, applyTeamColor } from './chrome.js';
-import { store } from './store.js';
+import { store, WS_URL } from './store.js';
 import { net } from './net.js';
 import { enterGame } from './game.js';
+import { type HumanConfig } from '@ballclub/engine';
 
 interface ObDraft {
   city: string;
@@ -31,6 +32,9 @@ export const OB = {
   code: '' as string,
   signed: false,
   clearSig: null as null | (() => void),
+  mode: 'solo' as 'solo' | 'host' | 'join',
+  joinCode: '' as string,
+  claimId: '' as string,
   draft: {
     city: '', mascot: '', name: '', color: '#3BA7D6', glyph: 'compass', cls: 'ANALYST', vibe: 'NIGHT', hue: 197
   } as ObDraft,
@@ -66,7 +70,36 @@ export const OB = {
           <p class="hero-note">Eight clubs. One league. Eighteen weeks a season.</p>
         </div>
       </div>`;
-      foot = '<button class="btn primary" data-ob="next">Take the job</button>';
+      foot = `<button class="btn primary" data-ob="next">Play solo</button>
+        <button class="btn ghost" data-ob="host" style="margin-top:8px">Host league</button>
+        <button class="btn ghost" data-ob="joinprompt" style="margin-top:8px">Join league</button>`;
+    }
+
+    if (OB.step === -1) {
+      top = '';
+      body = `<div class="eyebrow">Join <b>shared league</b></div>
+        <h1>Enter the code</h1>
+        <p class="dim" style="margin:10px 0 18px">Six letters from the host's paperwork.</p>
+        <div class="field"><div style="flex:1"><div class="lb">Invite code</div>
+          <input id="objoin" value="${esc(OB.joinCode)}" maxlength="6" autocomplete="off" spellcheck="false" style="text-transform:uppercase;letter-spacing:.2em;font-family:var(--mono)"></div></div>
+        <p class="faint" id="objoinerr" style="margin-top:10px;min-height:1.2em"></p>`;
+      foot = '<button class="btn ghost" data-ob="joinsplash">Back</button><button class="btn primary" data-ob="joingo">Find the league</button>';
+    }
+
+    if (OB.step === -2) {
+      const seats = (store.league?.teams || []).filter((t) => !t.isHuman);
+      body = `<div class="eyebrow">Open seats <b>${seats.length} left</b></div>
+        <h1>Pick a club</h1>
+        <p class="dim" style="margin:10px 0 14px">You inherit their roster and take the job. Your name goes on the door.</p>
+        <div class="panel">` +
+        seats.map((t) =>
+          `<button class="classcard${OB.claimId === t.id ? ' on' : ''}" data-ob="claim" data-k="${t.id}" style="width:100%;text-align:left;margin-bottom:8px">
+            <div class="cc-top"><div class="cc-ic" style="background:${t.color}">${mark(t.glyph, t.color)}</div>
+            <div style="flex:1"><div class="cc-tag">${esc(t.cls)}</div><h3 style="margin-top:2px">${esc(t.name)}</h3>
+            <div class="faint" style="font-size:12px">${t.w}-${t.l} · ${esc(t.city)}</div></div></div></button>`
+        ).join('') + `</div>`;
+      foot = '<button class="btn ghost" data-ob="joinsplash">Back</button><button class="btn primary" data-ob="claimgo"' +
+        (OB.claimId ? '' : ' disabled') + '>Take this job</button>';
     }
 
     if (OB.step === 1) {
@@ -352,9 +385,35 @@ export const OB = {
     const d = OB.draft;
     const r = Math.random;
     if (what === 'next') {
+      if (OB.step === 0) OB.mode = 'solo';
       OB.step++;
       haptic.tap();
       OB.render();
+    } else if (what === 'host') {
+      OB.mode = 'host';
+      OB.step = 1;
+      haptic.tap();
+      OB.render();
+    } else if (what === 'joinprompt') {
+      OB.mode = 'join';
+      OB.step = -1;
+      haptic.tap();
+      OB.render();
+    } else if (what === 'joinsplash') {
+      OB.step = 0;
+      OB.mode = 'solo';
+      haptic.tap();
+      OB.render();
+    } else if (what === 'joingo') {
+      const inp = $('#objoin') as HTMLInputElement | null;
+      OB.joinCode = (inp?.value || OB.joinCode || '').trim().toUpperCase();
+      OB.joinLeague();
+    } else if (what === 'claim') {
+      OB.claimId = data.k || '';
+      haptic.select();
+      OB.render();
+    } else if (what === 'claimgo') {
+      OB.finishClaim();
     } else if (what === 'back') {
       OB.step--;
       haptic.tap();
@@ -397,25 +456,120 @@ export const OB = {
     }
   },
 
-  create(): void {
+  humanFromDraft(): HumanConfig {
+    const d = OB.draft;
+    return {
+      name: d.name, city: d.city, mascot: d.mascot,
+      cls: d.cls, color: d.color, glyph: d.glyph, vibe: d.vibe
+    };
+  },
+
+  async create(): Promise<void> {
     if (!OB.signed) {
       haptic.warn();
       return;
     }
-    const d = OB.draft;
+    const human = OB.humanFromDraft();
+    const seed = Math.floor(Math.random() * 1e9);
     haptic.ok();
+
+    if (OB.mode === 'host') {
+      try {
+        await net.connect(WS_URL);
+        const { code } = await net.createRoom(seed, human);
+        store.newLeague(seed, human, code);
+        net.mode = 'shared';
+        net.code = code;
+        store.code = code;
+        store.dispatch({ t: 'advanceDraft' });
+        applyTeamColor(store.me.color);
+        if (backdrop.ok) backdrop.setVibe(VIBES[store.me.vibe], hexToRgb(store.me.color));
+        net.identify(store.meId);
+        enterGame();
+        return;
+      } catch (e) {
+        console.warn(e);
+        haptic.warn();
+        // fall back to solo so the player is not stuck
+      }
+    }
+
     const code = OB.code || makeInviteCode();
-    store.newLeague(Math.floor(Math.random() * 1e9), {
-      name: d.name, city: d.city, mascot: d.mascot,
-      cls: d.cls, color: d.color, glyph: d.glyph, vibe: d.vibe
-    }, code);
+    store.newLeague(seed, human, code);
     net.mode = 'solo';
     net.code = code;
-    const me = store.me;
-    applyTeamColor(me.color);
-    if (backdrop.ok) backdrop.setVibe(VIBES[me.vibe], hexToRgb(me.color));
-    /* run AI picks up to the human's first turn — logged so replays match */
+    applyTeamColor(store.me.color);
+    if (backdrop.ok) backdrop.setVibe(VIBES[store.me.vibe], hexToRgb(store.me.color));
     store.dispatch({ t: 'advanceDraft' });
+    enterGame();
+  },
+
+  async joinLeague(): Promise<void> {
+    const errEl = $('#objoinerr');
+    if (errEl) errEl.textContent = '';
+    if (!/^[ACDEFGHJKLMNPQRTUVWXY349]{6}$/.test(OB.joinCode)) {
+      if (errEl) errEl.textContent = 'That is not a league code.';
+      haptic.warn();
+      return;
+    }
+    try {
+      await net.connect(WS_URL);
+      const joined = await net.joinRoom(OB.joinCode, 'guest');
+      store.loadFromReplay(joined.seed, joined.human, joined.log, joined.code);
+      net.mode = 'shared';
+      net.code = joined.code;
+      store.code = joined.code;
+      OB.claimId = store.league!.teams.find((t) => !t.isHuman)?.id || '';
+      OB.step = -2;
+      haptic.ok();
+      OB.render();
+    } catch (e) {
+      haptic.warn();
+      if (errEl) errEl.textContent = e instanceof Error ? e.message : 'Could not join';
+    }
+  },
+
+  finishClaim(): void {
+    if (!OB.claimId || !store.league) return;
+    const d = OB.draft;
+    const seat = store.league.teams.find((t) => t.id === OB.claimId);
+    if (seat) {
+      d.city = seat.city;
+      d.mascot = seat.mascot;
+      d.name = d.name && d.name !== (d.city + ' ' + d.mascot) ? d.name : seat.name;
+      if (!CLASSES[d.cls]) d.cls = seat.cls;
+      d.color = d.color || seat.color;
+      d.glyph = d.glyph || seat.glyph;
+      d.vibe = d.vibe || seat.vibe || 'NIGHT';
+      // claim uses joiner's chosen class/color from draft when they went through splash only —
+      // refresh from seat for identity, keep class if they somehow set it
+      d.cls = seat.cls;
+      d.color = seat.color;
+      d.glyph = seat.glyph;
+      d.vibe = seat.vibe || 'NIGHT';
+      d.name = seat.city + ' ' + seat.mascot;
+      d.city = seat.city;
+      d.mascot = seat.mascot;
+    }
+    const human = OB.humanFromDraft();
+    const ownerId = 'p' + Math.floor(Math.random() * 1e6);
+    const r = store.dispatch({
+      t: 'claimTeam',
+      teamId: OB.claimId,
+      human,
+      ownerId
+    });
+    if (!r.ok) {
+      haptic.warn();
+      return;
+    }
+    store.meId = OB.claimId;
+    store.human = human;
+    applyTeamColor(store.me.color);
+    if (backdrop.ok) backdrop.setVibe(VIBES[store.me.vibe], hexToRgb(store.me.color));
+    net.identify(store.meId);
+    store.save();
+    haptic.ok();
     enterGame();
   }
 };

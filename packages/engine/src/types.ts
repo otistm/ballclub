@@ -2,6 +2,7 @@
 
 export type Position = 'C' | '1B' | '2B' | '3B' | 'SS' | 'LF' | 'CF' | 'RF' | 'DH' | 'SP' | 'RP';
 export type Bats = 'L' | 'R' | 'S';
+export type Throws = 'L' | 'R';
 export type Phase = 'draft' | 'regular' | 'playoffs' | 'offseason';
 
 export type RatingKey = 'con' | 'pow' | 'eye' | 'spd' | 'fld' | 'arm' | 'stuff' | 'ctl' | 'mov' | 'stam';
@@ -33,6 +34,8 @@ export interface Player {
   pos: Position;
   age: number;
   bats: Bats;
+  /** Pitching hand; hitters default R for throws-to-first flavor */
+  throws?: Throws;
   traits: string[];
   r: Ratings;
   ovr: number;
@@ -190,6 +193,17 @@ export interface ScenarioEffect {
   rainRisk?: number;
   riot?: number;
   k?: number;
+  /** next-series-only strategy overlays (cleared after the week) */
+  weekPatience?: number;
+  weekAggression?: number;
+  weekCond?: number;
+}
+
+/** Deferred dugout instructions from a desk card — live for one series */
+export interface WeekBoost {
+  patience?: number;
+  aggression?: number;
+  cond?: number;
 }
 
 export interface ScenarioSide {
@@ -279,6 +293,7 @@ export interface WeekFinance {
   sponsor?: number;
   payroll?: number;
   sellout?: boolean;
+  luxury?: number;
 }
 
 export interface TeamHistory {
@@ -334,6 +349,18 @@ export interface Team {
   devBonus?: number;
   /** true while this club has an unresolved desk scenario blocking the week */
   deskPending?: boolean;
+  /** leftover rain risk from a desk card; rolled on the next home series */
+  rainRisk?: number;
+  /** desk card overlays for the upcoming series only */
+  weekBoost?: WeekBoost | null;
+  /** midnight call from the desk — accept via trade action */
+  pendingTrade?: { rivalId: string; give: string[]; get: string[] } | null;
+  /** offer from another human GM waiting on this desk */
+  inboxTrade?: { fromId: string; give: string[]; get: string[] } | null;
+  /** optional batting order override (player ids); null/empty = auto */
+  lineupIds?: string[] | null;
+  /** optional SP order override; null/empty = auto */
+  rotationIds?: string[] | null;
   /** GM progression; optional so older saves hydrate via ensureProgress() */
   progress?: TeamProgress;
 }

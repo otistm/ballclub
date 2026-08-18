@@ -18,6 +18,9 @@ uniform float uBloom;
 uniform float uSweep;
 uniform float uPulse;
 uniform float uPulseHue;
+uniform float uTowers;
+uniform float uRibbon;
+uniform float uCrowd;
 
 float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
 float noise(vec2 p){
@@ -52,13 +55,27 @@ void main(){
   float grassMask = smoothstep(0.42, 0.0, uv.y);
   col += vec3(0.010,0.026,0.016) * mow * grassMask;
 
-  /* light towers, warm and slightly alive */
+  /* light towers — more when lights are upgraded */
   float t = uTime;
   float lt = 0.0;
+  float tw = max(uTowers, 0.35);
   lt += tower(suv, vec2(0.13*asp.x, 0.955), 1.0, t);
   lt += tower(suv, vec2(0.87*asp.x, 0.955), 1.0, t+2.1);
   lt += tower(suv, vec2(0.50*asp.x, 1.035), 1.7, t+4.7) * 0.85;
-  col += uBulb * lt * 0.30 * uBloom;
+  if (tw > 1.4){
+    lt += tower(suv, vec2(0.28*asp.x, 0.98), 0.75, t+1.1) * 0.7;
+    lt += tower(suv, vec2(0.72*asp.x, 0.98), 0.75, t+3.3) * 0.7;
+  }
+  if (tw > 2.2){
+    lt += tower(suv, vec2(0.05*asp.x, 0.90), 0.55, t+5.0) * 0.55;
+    lt += tower(suv, vec2(0.95*asp.x, 0.90), 0.55, t+6.2) * 0.55;
+  }
+  col += uBulb * lt * 0.30 * uBloom * clamp(tw * 0.55, 0.55, 1.55);
+
+  /* scoreboard ribbon glow from board upgrades */
+  float ribbon = smoothstep(0.88, 0.98, uv.y) * uRibbon;
+  col += uBulb * ribbon * (0.12 + 0.08*sin(t*1.4 + uv.x*12.0));
+  col += uTeam * ribbon * 0.06;
 
   /* team-color wash sweeping slowly across the plate */
   float sweep = sin(uv.y*2.3 - t*0.16) * 0.5 + 0.5;
@@ -66,12 +83,16 @@ void main(){
   col += uTeam * band * sweep * 0.115 * uSweep;
   col += uTeam * smoothstep(0.75,0.0,uv.y) * 0.030 * uSweep;
 
-  /* the bulb matrix, barely there — the scoreboard behind everything */
+  /* the bulb matrix, barely there — denser when the house is full */
   vec2 gridUv = uv * vec2(uRes.x/6.4, uRes.y/6.4);
   vec2 gf = fract(gridUv) - 0.5;
   float bulbDot = smoothstep(0.34, 0.13, length(gf));
   float gridLife = noise(floor(gridUv)*0.11 + vec2(t*0.10, 0.0));
-  col += uBulb * bulbDot * (0.014 + 0.030*gridLife) * uBloom;
+  float crowd = clamp(uCrowd, 0.0, 1.0);
+  col += uBulb * bulbDot * (0.014 + 0.030*gridLife + 0.045*crowd) * uBloom;
+  /* low stand murmur */
+  float seats = smoothstep(0.55, 0.15, uv.y) * crowd;
+  col += uTeam * seats * 0.025 * (0.5 + 0.5*noise(uv*40.0 + t*0.2));
 
   /* event pulse: a flare from the plate */
   if (uPulse > 0.001){
@@ -117,11 +138,17 @@ interface BackdropState {
   grain: number;
   bloom: number;
   sweep: number;
+  towers: number;
+  ribbon: number;
+  crowd: number;
 }
 
 export class Backdrop {
   ok = false;
-  state: BackdropState = { bg: [0.035, 0.055, 0.05], bulb: [1, 0.72, 0.3], team: [0.23, 0.65, 0.84], grain: 0.1, bloom: 1, sweep: 0.35 };
+  state: BackdropState = {
+    bg: [0.035, 0.055, 0.05], bulb: [1, 0.72, 0.3], team: [0.23, 0.65, 0.84],
+    grain: 0.1, bloom: 1, sweep: 0.35, towers: 1, ribbon: 0, crowd: 0.35
+  };
   pulse = 0;
   pulseHue = 0;
 
@@ -153,7 +180,7 @@ export class Backdrop {
     gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
 
     const U: Record<string, WebGLUniformLocation | null> = {};
-    ['uRes', 'uTime', 'uBg', 'uBulb', 'uTeam', 'uGrain', 'uBloom', 'uSweep', 'uPulse', 'uPulseHue'].forEach(
+    ['uRes', 'uTime', 'uBg', 'uBulb', 'uTeam', 'uGrain', 'uBloom', 'uSweep', 'uPulse', 'uPulseHue', 'uTowers', 'uRibbon', 'uCrowd'].forEach(
       (n) => (U[n] = gl.getUniformLocation(pr, n))
     );
 
@@ -191,6 +218,9 @@ export class Backdrop {
       gl!.uniform1f(U.uSweep, s.sweep);
       gl!.uniform1f(U.uPulse, self.pulse);
       gl!.uniform1f(U.uPulseHue, self.pulseHue);
+      gl!.uniform1f(U.uTowers, s.towers);
+      gl!.uniform1f(U.uRibbon, s.ribbon);
+      gl!.uniform1f(U.uCrowd, s.crowd);
       self.pulse *= 0.935;
       if (self.pulse < 0.002) self.pulse = 0;
       gl!.drawArrays(gl!.TRIANGLES, 0, 3);
@@ -213,6 +243,16 @@ export class Backdrop {
     this.state.bloom = v.bloom;
     this.state.sweep = v.sweep;
     if (teamRgb) this.state.team = teamRgb;
+  }
+
+  /** Drive the park from stadium upgrades and last week's gate. */
+  setPark(opts: { lights?: number; board?: number; crowd?: number }): void {
+    const lights = opts.lights == null ? 0 : opts.lights;
+    const board = opts.board == null ? 0 : opts.board;
+    const crowd = opts.crowd == null ? 0.35 : opts.crowd;
+    this.state.towers = 0.85 + Math.min(3, lights) * 0.55;
+    this.state.ribbon = Math.min(1, board / 3);
+    this.state.crowd = Math.max(0, Math.min(1, crowd));
   }
 
   setTeam(rgb: number[]): void {

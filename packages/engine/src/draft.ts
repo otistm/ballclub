@@ -124,14 +124,17 @@ export interface AutoPick {
   round: number;
 }
 
-export function autoDraftUntilHuman(league: League, maxPicks?: number): AutoPick[] {
+export function autoDraftUntilHuman(
+  league: League, maxPicks?: number, idleIds?: Iterable<string>
+): AutoPick[] {
+  const idle = idleIds ? new Set(idleIds) : new Set<string>();
   const picks: AutoPick[] = [];
   let guard = 0;
   while (league.phase === 'draft' && guard++ < (maxPicks || 200)) {
     const cur = draftCurrent(league);
     if (!cur) break;
     const team = league.teams.find((t) => t.id === cur.teamId)!;
-    if (team.isHuman) break;
+    if (team.isHuman && !idle.has(team.id)) break;
     if (team.roster.length >= ROSTER_MAX) {
       league.draftIdx++;
       continue;

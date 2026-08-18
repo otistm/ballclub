@@ -30,3 +30,5 @@ export { TROPHIES } from './data/trophies.js';
 export { ACHIEVEMENTS, achievementById } from './data/achievements.js';
 export { HIT_POS, PIT_POS, POS_DEF, ROSTER_MAX, ROSTER_MIN, SEASON_WEEKS, GAMES_PER_WEEK } from './data/positions.js';
 export * from './progress.js';
+export * from './idle.js';
+export * from './staff.js';

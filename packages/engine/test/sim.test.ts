@@ -61,7 +61,9 @@ describe('game sim', () => {
     let totalRuns = 0;
     let totalGames = 0;
     league.teams.forEach((t) => {
-      expect(t.w + t.l).toBe(games);
+      // rain desk cards can wash out home games; schedule still advances
+      expect(t.w + t.l).toBeLessThanOrEqual(games);
+      expect(t.w + t.l).toBeGreaterThan(games * 0.65);
       totalRuns += t.rf;
       totalGames += t.w + t.l;
     });

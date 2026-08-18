@@ -9,19 +9,21 @@ import {
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
 import { $, closeSheet, esc, toast } from '../ui/dom.js';
-import { haptic, drag, longPress, reduceMotion, swallowClick } from '../ui/ux.js';
+import { haptic, drag, longPress, reduceMotion, swallowClick, roll } from '../ui/ux.js';
 import { ic } from '../ui/icons.js';
 import { M, hexToRgb } from '../ui/format.js';
 import { vibeSwatch } from '../ui/gl.js';
 import { store } from './store.js';
+import { net } from './net.js';
+import { deskWaiters } from './idle.js';
 import { UI } from './uiState.js';
 import { backdrop, marquee, applyVibe, refreshChrome } from './chrome.js';
 import { viewClub } from '../views/club.js';
-import { viewRoster } from '../views/roster.js';
+import { viewRoster, rosterGroups } from '../views/roster.js';
 import { viewMarket, boardOrder } from '../views/market.js';
 import { viewPark, projectRevenue } from '../views/park.js';
 import { viewLeague } from '../views/league.js';
-import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet } from '../views/sheets.js';
+import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet, staffSheet } from '../views/sheets.js';
 import { meFog } from '../views/helpers.js';
 import {
   startBroadcast, skipBroadcast, skipBroadcastGame,
@@ -37,6 +39,26 @@ const TABS = [
 ] as const;
 
 type ViewKey = (typeof TABS)[number]['k'];
+
+/** Pair game summaries with PBP by identity, not list index (multi-human weeks). */
+function matchPbps(games: GameSummary[], all: MyPbp[]): MyPbp[] {
+  const used = new Set<number>();
+  return games.map((gm) => {
+    const i = all.findIndex(
+      (m, idx) =>
+        !used.has(idx) &&
+        m.homeId === gm.homeId &&
+        m.awayId === gm.awayId &&
+        m.homeRuns === gm.homeRuns &&
+        m.awayRuns === gm.awayRuns
+    );
+    if (i < 0) {
+      return { homeId: gm.homeId, awayId: gm.awayId, homeRuns: gm.homeRuns, awayRuns: gm.awayRuns, pbp: [] };
+    }
+    used.add(i);
+    return all[i];
+  });
+}
 
 function flushProgressToasts(): void {
   if (!store.league) return;
@@ -101,6 +123,7 @@ export function render(): void {
   if (store.view === 'club' && store.me.deskPending && L.phase === 'regular') wireScenarioDeck();
   if (store.view === 'market' && L.phase === 'draft') wireDraftDeck();
   if (store.view === 'park') wireSliders();
+  if (store.view === 'roster') wireRosterStrategy();
   wireLongPress();
 }
 
@@ -121,7 +144,11 @@ function wirePull(): void {
   const lab = $('#pulllab'), ring = pull.querySelector('.ring') as HTMLElement;
   const THRESH = 78;
   let y0: number | null = null, dist = 0, armed = false;
-  const canPull = (): boolean => store.league!.phase === 'regular' && !store.me.deskPending && sc.scrollTop <= 0;
+  const canPull = (): boolean =>
+    store.league!.phase === 'regular' &&
+    !store.me.deskPending &&
+    !deskWaiters(store.league!, store.meId).length &&
+    sc.scrollTop <= 0;
 
   sc.addEventListener('touchstart', (e) => {
     y0 = canPull() ? e.touches[0].clientY : null;
@@ -223,8 +250,14 @@ function playSeries(): void {
     toast('Not yet', 'There is a matter on your desk.', 'bulb');
     return;
   }
+  const waiting = deskWaiters(L, me.id);
+  if (waiting.length) {
+    toast('Not yet', 'Waiting on ' + waiting[0].name + '.', 'bulb');
+    return;
+  }
   UI.simming = true;
   haptic.ok();
+  const beforeCash = me.cash;
   const out = store.dispatch({ t: 'week' });
   UI.simming = false;
   if (!out.ok || !out.week) {
@@ -234,7 +267,7 @@ function playSeries(): void {
   flushProgressToasts();
 
   const mine: GameSummary[] = out.week.games.filter((gm) => gm.homeId === me.id || gm.awayId === me.id);
-  const pbps: MyPbp[] = (L.myPbp || []).slice();
+  const pbps: MyPbp[] = matchPbps(mine, L.myPbp || []);
   let wins = 0;
   mine.forEach((gm) => {
     if (gm.winnerId === me.id) wins++;
@@ -247,6 +280,12 @@ function playSeries(): void {
     } else if (wins === 0) marquee.flash('SWEPT', 2600);
     if ((store.league!.phase as string) === 'playoffs') marquee.flash('POSTSEASON', 3400);
     seriesRecap(mine, pbps, wins);
+    applyVibe();
+    const cashEl = document.querySelector('#cashv') as HTMLElement | null;
+    if (cashEl) {
+      const prev = beforeCash;
+      roll(cashEl, prev, store.me.cash, (v) => M(Math.round(v)), 700);
+    }
   };
 
   startBroadcast({ games: mine, pbps, onDone: finish });
@@ -346,6 +385,45 @@ function wireDraftDeck(): void {
       }
     }
   });
+}
+
+/* ---------- roster strategy sliders ---------- */
+function wireRosterStrategy(): void {
+  const me = store.me;
+  const commit = (): void => {
+    store.dispatch({
+      t: 'setStrategy',
+      teamId: me.id,
+      patience: me.strategy.patience,
+      aggression: me.strategy.aggression,
+      bullpenHook: me.strategy.bullpenHook
+    });
+  };
+  document.querySelectorAll<HTMLInputElement>('.rslider').forEach((el) => {
+    el.addEventListener('input', () => {
+      const v = (+el.value) / 100;
+      if (el.dataset.strat === 'pat') me.strategy.patience = v;
+      if (el.dataset.strat === 'agg') me.strategy.aggression = v;
+      if (el.dataset.strat === 'hook') me.strategy.bullpenHook = v;
+      haptic.light();
+    });
+    el.addEventListener('change', () => {
+      commit();
+      render();
+    });
+  });
+}
+
+function reorderIds(ids: string[], id: string, dir: 'up' | 'down'): string[] {
+  const i = ids.indexOf(id);
+  if (i < 0) return ids;
+  const j = dir === 'up' ? i - 1 : i + 1;
+  if (j < 0 || j >= ids.length) return ids;
+  const next = ids.slice();
+  const tmp = next[i];
+  next[i] = next[j];
+  next[j] = tmp;
+  return next;
 }
 
 /* ---------- park wiring ---------- */
@@ -478,9 +556,13 @@ function proposeTrade(): void {
   });
   if (r.ok) {
     haptic.big();
-    toast('Trade agreed', them.abbr + ' send ' + (incoming || 'nobody'), 'good');
-    flushProgressToasts();
-    if (backdrop.ok) backdrop.flare(0.7, 0);
+    if (them.isHuman) {
+      toast('Faxed', 'Waiting on ' + them.abbr + ' to answer', 'bulb');
+    } else {
+      toast('Trade agreed', them.abbr + ' send ' + (incoming || 'nobody'), 'good');
+      flushProgressToasts();
+      if (backdrop.ok) backdrop.flare(0.7, 0);
+    }
     UI.trade.mine = [];
     UI.trade.theirs = [];
   } else {
@@ -586,6 +668,52 @@ export function handle(act: string, d: DOMStringMap): void {
       haptic.tap();
       render();
       break;
+    case 'lu-lock': {
+      const { lu } = rosterGroups();
+      const r = store.dispatch({ t: 'setLineup', teamId: me.id, ids: lu.lineup.map((p) => p.id) });
+      if (r.ok) { haptic.ok(); toast('Lineup', 'These nine are locked.', 'good'); }
+      else { haptic.warn(); toast('Not yet', r.err || 'Need nine', 'bad'); }
+      render();
+      break;
+    }
+    case 'lu-auto':
+      store.dispatch({ t: 'setLineup', teamId: me.id, ids: [] });
+      haptic.tap();
+      toast('Lineup', 'Back to the auto card.', '');
+      render();
+      break;
+    case 'lu-move': {
+      const { lu } = rosterGroups();
+      let ids = (me.lineupIds && me.lineupIds.length >= 9) ? me.lineupIds.slice() : lu.lineup.map((p) => p.id);
+      ids = reorderIds(ids, d.id!, (d.dir as 'up' | 'down') || 'up');
+      store.dispatch({ t: 'setLineup', teamId: me.id, ids });
+      haptic.tap();
+      render();
+      break;
+    }
+    case 'rot-lock': {
+      const { lu } = rosterGroups();
+      store.dispatch({ t: 'setRotation', teamId: me.id, ids: lu.sps.slice(0, 5).map((p) => p.id) });
+      haptic.ok();
+      toast('Rotation', 'Starters locked.', 'good');
+      render();
+      break;
+    }
+    case 'rot-auto':
+      store.dispatch({ t: 'setRotation', teamId: me.id, ids: [] });
+      haptic.tap();
+      toast('Rotation', 'Arms sorted by the house.', '');
+      render();
+      break;
+    case 'rot-move': {
+      const { lu } = rosterGroups();
+      let ids = (me.rotationIds && me.rotationIds.length) ? me.rotationIds.slice() : lu.sps.map((p) => p.id);
+      ids = reorderIds(ids, d.id!, (d.dir as 'up' | 'down') || 'up');
+      store.dispatch({ t: 'setRotation', teamId: me.id, ids });
+      haptic.tap();
+      render();
+      break;
+    }
     case 'market':
       UI.market = d.k as typeof UI.market;
       haptic.tap();
@@ -638,6 +766,43 @@ export function handle(act: string, d: DOMStringMap): void {
     }
     case 'tclear': UI.trade.mine = []; UI.trade.theirs = []; render(); break;
     case 'propose': proposeTrade(); break;
+    case 'desk-trade-yes': {
+      const pt = me.pendingTrade;
+      if (!pt) break;
+      const r = store.dispatch({
+        t: 'trade', teamId: me.id, rivalId: pt.rivalId, give: pt.give, get: pt.get
+      });
+      if (r.ok) { haptic.ok(); toast('Deal', 'You took the midnight call.', 'good'); }
+      else { haptic.warn(); toast('No', r.err || 'They backed out', 'bad'); store.dispatch({ t: 'clearPendingTrade', teamId: me.id }); }
+      render();
+      break;
+    }
+    case 'desk-trade-no':
+      store.dispatch({ t: 'clearPendingTrade', teamId: me.id });
+      haptic.tap();
+      toast('Hung up', 'The fax goes cold.', '');
+      render();
+      break;
+    case 'inbox-yes': {
+      const r = store.dispatch({ t: 'respondTrade', teamId: me.id, accept: true });
+      if (r.ok) {
+        haptic.ok();
+        toast('Deal done', 'You took the fax.', 'good');
+        flushProgressToasts();
+        if (backdrop.ok) backdrop.flare(0.7, 0);
+      } else {
+        haptic.warn();
+        toast('No', r.err || 'Deal fell apart', 'bad');
+      }
+      render();
+      break;
+    }
+    case 'inbox-no':
+      store.dispatch({ t: 'respondTrade', teamId: me.id, accept: false });
+      haptic.tap();
+      toast('Passed', 'You left it on the machine.', '');
+      render();
+      break;
     case 'signfa': doSignFA(d.id!); break;
     case 'release': doRelease(d.id!); break;
     case 'scoutone': doScout(d.id!); break;
@@ -653,9 +818,47 @@ export function handle(act: string, d: DOMStringMap): void {
         flushProgressToasts();
       } else {
         haptic.warn();
-        toast('Not now', r.err || 'No points to spend', 'bad');
+        toast('No', r.err || 'Cannot spend', 'bad');
       }
       render();
+      break;
+    }
+    case 'hirestaff': {
+      const role = d.k as 'scout' | 'coach' | 'trainer' | 'analyst';
+      const r = store.dispatch({ t: 'hireStaff', teamId: me.id, role });
+      if (r.ok && r.hired) {
+        haptic.ok();
+        toast('Hired', role + ' ' + r.hired.from + ' → ' + r.hired.to + ' · ' + M(r.hired.cost || 0), 'good');
+        flushProgressToasts();
+        if (backdrop.ok) backdrop.flare(0.4, 1);
+        render();
+        staffSheet(role);
+      } else {
+        haptic.warn();
+        toast('No', r.err || 'Cannot hire', 'bad');
+        render();
+      }
+      break;
+    }
+    case 'staff': {
+      const role = d.k as 'scout' | 'coach' | 'trainer' | 'analyst';
+      staffSheet(role);
+      haptic.tap();
+      break;
+    }
+    case 'watchtape': {
+      const homeId = d.home!;
+      const awayId = d.away!;
+      const last = L.results[L.results.length - 1];
+      if (!last) break;
+      const games = last.games.filter((g) => g.homeId === homeId && g.awayId === awayId);
+      const pbps = matchPbps(games, L.myPbp || []);
+      if (!games.length || !pbps.some((p) => p.pbp && p.pbp.length)) {
+        toast('Tape', 'No play-by-play on the wire.', 'bulb');
+        break;
+      }
+      haptic.ok();
+      startBroadcast({ games, pbps, onDone: () => render() });
       break;
     }
     case 'achieve': {
@@ -693,8 +896,13 @@ export function handle(act: string, d: DOMStringMap): void {
       const p = me.roster.find((x) => x.id === d.id);
       if (!p) break;
       const ask = Math.round((p.salary * 1.15) / 5000) * 5000;
-      const r = store.dispatch({ t: 'resign', teamId: me.id, playerId: d.id!, offer: ask });
-      toast(r.ok ? 'Re-signed' : 'Gone', r.ok ? p.name + ' at ' + M(ask) : p.name + ' hits the market', r.ok ? 'good' : 'bad');
+      const years = d.years ? Math.max(1, Math.min(4, +d.years)) : 3;
+      const r = store.dispatch({ t: 'resign', teamId: me.id, playerId: d.id!, offer: ask, years });
+      toast(
+        r.ok ? 'Re-signed' : 'Gone',
+        r.ok ? p.name + ' · ' + years + ' yr at ' + M(ask) : p.name + ' hits the market',
+        r.ok ? 'good' : 'bad'
+      );
       haptic.ok();
       openOffseason();
       break;
@@ -792,7 +1000,10 @@ export function enterGame(): void {
   $('#app').style.display = 'flex';
   anime({ targets: '#app', opacity: [0, 1], duration: 500, delay: 180 });
   if (backdrop.ok) backdrop.flare(1.1, 1);
-  go('market');
+  const phase = store.league?.phase;
+  const tab = phase === 'draft' ? 'market' : phase === 'regular' ? 'club' : 'league';
+  go(tab);
   refreshChrome();
-  marquee.flash('DRAFT DAY', 3000);
+  if (phase === 'draft') marquee.flash('DRAFT DAY', 3000);
+  else marquee.flash(store.me.abbr, 2200);
 }

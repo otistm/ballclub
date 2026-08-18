@@ -1,16 +1,31 @@
 import { clamp, mulberry32, type Rng } from './rng.js';
 import { CLASSES } from './data/classes.js';
-import { buildLineup, type LineupPlan } from './lineup.js';
+import { buildLineup, effectiveStrategy, pitcherThrows, type LineupPlan } from './lineup.js';
 import { has } from './player.js';
-import type { GameResult, PbpEvent, Player, Team } from './types.js';
+import type { GameResult, PbpEvent, Player, Team, Throws } from './types.js';
 
 interface PaContext {
   inning: number;
   latePen: number;
   runners: boolean;
+  /** Closer perk: one-run / tied late */
+  closeGame?: boolean;
+  /** batting for the Closer class */
+  closerBat?: boolean;
 }
 
 type PaKind = 'BB' | 'K' | 'HBP' | 'HR' | '1B' | '2B' | '3B' | 'GO' | 'AO';
+
+/** Same-side pitcher vs batter is harder; opposite-hand is a bump. */
+function handEdge(bat: Player, pit: Player): number {
+  const th: Throws = pit.throws === 'L' ? 'L' : 'R';
+  if (bat.bats === 'S') return 0.02;
+  if (bat.bats === 'L' && th === 'R') return 0.05;
+  if (bat.bats === 'R' && th === 'L') return 0.05;
+  if (bat.bats === 'L' && th === 'L') return -0.06;
+  if (bat.bats === 'R' && th === 'R') return -0.04;
+  return 0;
+}
 
 export function paOutcome(bat: Player, pit: Player, defZ: number, rng: Rng, ctx: PaContext): { k: PaKind } {
   const eyeZ = (bat.r.eye - 50) / 18;
@@ -24,15 +39,23 @@ export function paOutcome(bat: Player, pit: Player, defZ: number, rng: Rng, ctx:
     stf += ctx.latePen;
     mov += ctx.latePen * 0.6;
   }
+  // one-run games swing toward the Closer
+  if (ctx.closeGame) {
+    if (ctx.latePen) { stf += 3; mov += 2; }
+    if (ctx.closerBat) { /* slight bat bump via morale-like term below */ }
+  }
   const stfZ = (stf - 50) / 18;
   const ctlZ = (ctl - 50) / 18;
   const movZ = (mov - 50) / 18;
   const fat = pit.gFat || 0;
   const mor = clamp(((bat.morale == null ? 60 : bat.morale) - 60) / 400, -0.1, 0.1);
   const clutch = ctx.runners && has(bat, 'CLUTCH') ? 0.14 : 0;
+  const closerEdge = ctx.closeGame && ctx.closerBat ? 0.08 : 0;
+  const hand = handEdge(bat, pit);
 
-  let pBB = 0.083 * Math.exp(0.34 * eyeZ - 0.36 * ctlZ + 0.7 * fat);
-  let pK = 0.188 * Math.exp(0.33 * stfZ - 0.35 * conZ - 0.45 * fat);
+  let pBB = 0.083 * Math.exp(0.34 * eyeZ - 0.36 * ctlZ + 0.7 * fat - hand * 0.8);
+  let pK = 0.188 * Math.exp(0.33 * stfZ - 0.35 * conZ - 0.45 * fat - hand * 1.1);
+  if (has(bat, 'GRINDER')) pK *= 0.85;
   pBB = clamp(pBB, 0.01, 0.26);
   pK = clamp(pK, 0.03, 0.38);
   const pHBP = 0.0085;
@@ -40,11 +63,11 @@ export function paOutcome(bat: Player, pit: Player, defZ: number, rng: Rng, ctx:
   if (rng() < pK / (1 - pBB)) return { k: 'K' };
   if (rng() < pHBP) return { k: 'HBP' };
 
-  let hr = 0.0405 * Math.exp(0.44 * powZ - 0.24 * movZ + 0.6 * fat + mor + clutch);
+  let hr = 0.0405 * Math.exp(0.44 * powZ - 0.24 * movZ + 0.6 * fat + mor + clutch + closerEdge * 0.5 + hand * 0.6);
   hr = clamp(hr, 0.001, 0.14);
   if (rng() < hr) return { k: 'HR' };
 
-  let babip = 0.315 + 0.025 * conZ + 0.013 * spdZ + 0.006 * powZ - 0.03 * defZ - 0.015 * movZ + 0.16 * fat + mor * 0.28 + clutch * 0.3;
+  let babip = 0.315 + 0.025 * conZ + 0.013 * spdZ + 0.006 * powZ - 0.03 * defZ - 0.015 * movZ + 0.16 * fat + mor * 0.28 + clutch * 0.3 + closerEdge * 0.04 + hand * 0.04;
   babip = clamp(babip, 0.19, 0.4);
   if (rng() < babip) {
     const dRate = clamp(0.205 + 0.038 * powZ + 0.015 * spdZ, 0.1, 0.36);
@@ -77,8 +100,14 @@ interface BaseSlot {
 
 export function simGame(home: Team, away: Team, seed: number): GameResult | { ok: false } {
   const rng = mulberry32(seed);
-  const H = buildLineup(home);
-  const A = buildLineup(away);
+  // provisional rotations so we know who starts, then platoon lineups vs that hand
+  const H0 = buildLineup(home);
+  const A0 = buildLineup(away);
+  if (!H0.sps.length || !A0.sps.length) return { ok: false };
+  const homeStarter = H0.sps[(home.rotIdx || 0) % H0.sps.length];
+  const awayStarter = A0.sps[(away.rotIdx || 0) % A0.sps.length];
+  const H = buildLineup(home, pitcherThrows(awayStarter));
+  const A = buildLineup(away, pitcherThrows(homeStarter));
   if (!H.lineup.length || !A.lineup.length || !H.sps.length || !A.sps.length) {
     return { ok: false };
   }
@@ -107,7 +136,7 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
     let bases: (BaseSlot | null)[] = [null, null, null];
     let runs = 0;
     const lp = def.t === home ? latePen : latePenA;
-    const hook = def.t.strategy ? def.t.strategy.bullpenHook : 0.5;
+    const hook = effectiveStrategy(def.t).bullpenHook;
     const scoreFrom = (slot: BaseSlot | null) => {
       if (!slot) return;
       runs++;
@@ -135,7 +164,8 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
     while (outs < 3) {
       // pitching change
       const limit = 18 + (def.pit.r.stam - 50) / 2.6 + (def.pit.pos === 'SP' ? 6 : 0);
-      def.pit.gFat = clamp(((def.pit.bfGame || 0) - limit) / 26, 0, 0.85);
+      const fatMul = (has(def.pit, 'IRON') || has(def.pit, 'RUBBER')) ? 0.6 : 1;
+      def.pit.gFat = clamp((((def.pit.bfGame || 0) - limit) / 26) * fatMul, 0, 0.85);
       const wantHook =
         def.pit.gFat > 0.3 - hook * 0.18 ||
         (def.pit.pos === 'SP' && inn >= 6 && hook > 0.7 && def.pit.gFat > 0.05);
@@ -150,7 +180,15 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
 
       const bat = off.L.lineup[off.idx % off.L.lineup.length];
       off.idx++;
-      const ctx: PaContext = { inning: inn, latePen: lp, runners: !!(bases[0] || bases[1] || bases[2]) };
+      const scoreNow = sides[0].runs + (offIdx === 0 ? runs : 0) - (sides[1].runs + (offIdx === 1 ? runs : 0));
+      const closeGame = inn >= 7 && Math.abs(scoreNow) <= 1;
+      const ctx: PaContext = {
+        inning: inn,
+        latePen: lp,
+        runners: !!(bases[0] || bases[1] || bases[2]),
+        closeGame,
+        closerBat: closeGame && !!CLASSES[off.t.cls].mods.latePen
+      };
       const o = paOutcome(bat, def.pit, def.L.defZ, rng, ctx);
       def.pit.bfGame = (def.pit.bfGame || 0) + 1;
       bat.st.pa++;
@@ -205,13 +243,17 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
           let to: number;
           if (o.k === '3B') to = 3;
           else if (o.k === '2B') {
-            // from 1st, scoring on a double is a real coin flip
-            to = i === 0 ? (rng() < clamp(0.42 + sz / 240, 0.18, 0.72) ? 3 : 2) : 3;
+            // from 1st, scoring on a double is a real coin flip — aggression sends them
+            const agg = effectiveStrategy(off.t).aggression;
+            const wheels = has(rr.p, 'WHEELS') ? 0.14 : 0;
+            to = i === 0 ? (rng() < clamp(0.42 + sz / 240 + (agg - 0.5) * 0.22 + wheels, 0.18, 0.88) ? 3 : 2) : 3;
           } else {
             // single: 2nd scores often, 1st reaches 3rd sometimes
+            const agg = effectiveStrategy(off.t).aggression;
+            const wheels = has(rr.p, 'WHEELS') ? 0.12 : 0;
             if (i === 2) to = 3;
-            else if (i === 1) to = rng() < clamp(0.56 + sz / 220, 0.32, 0.86) ? 3 : 2;
-            else to = rng() < clamp(0.28 + sz / 260, 0.1, 0.56) ? 2 : 1;
+            else if (i === 1) to = rng() < clamp(0.56 + sz / 220 + (agg - 0.5) * 0.18 + wheels, 0.32, 0.92) ? 3 : 2;
+            else to = rng() < clamp(0.28 + sz / 260 + (agg - 0.5) * 0.16 + wheels, 0.1, 0.68) ? 2 : 1;
           }
           if (to >= 3) { scoreFrom(rr); rbi++; }
           else nb[to] = rr;
@@ -250,12 +292,20 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
         }
       }
 
-      // steal attempt
+      // steal attempt — aggression greens the light; Cannon catchers throw them out
       if (bases[0] && !bases[1] && outs < 3) {
         const rr = bases[0];
-        const att = clamp(0.075 * Math.exp((rr.p.r.spd - 50) / 22), 0, 0.42);
+        const agg = effectiveStrategy(off.t).aggression;
+        const att = clamp(0.075 * Math.exp((rr.p.r.spd - 50) / 22) * (0.55 + agg * 0.9), 0, 0.55);
         if (rng() < att) {
-          const succ = clamp(0.66 + (rr.p.r.spd - 50) / 160 - (def.pit.r.mov - 50) / 400, 0.35, 0.92);
+          const catcher = def.L.lineup.find((p) => p.pos === 'C');
+          const cannon = catcher && has(catcher, 'CANNON') ? 0.14 : 0;
+          const arm = catcher ? (catcher.r.arm - 50) / 400 : 0;
+          const succ = clamp(
+            0.66 + (rr.p.r.spd - 50) / 160 - (def.pit.r.mov - 50) / 400 - (agg - 0.5) * 0.06 - cannon - arm,
+            0.28,
+            0.92
+          );
           if (rng() < succ) {
             bases[1] = rr;
             bases[0] = null;

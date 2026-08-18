@@ -14,17 +14,39 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
   const out: WeekOutcome = { week: league.week + 1, games: [], series: [] };
   league.myPbp = [];
   const teamById = (id: string): Team => league.teams.find((t) => t.id === id)!;
-  league.teams.forEach((t) => resetWeekXp(t));
+  league.teams.forEach((t) => {
+    resetWeekXp(t);
+    // desk weekBoost cond hits the clubhouse before first pitch
+    if (t.weekBoost && t.weekBoost.cond) {
+      t.roster.forEach((p) => {
+        p.cond = clamp(p.cond + (t.weekBoost!.cond || 0), 0, 100);
+      });
+    }
+  });
 
   pairs.forEach((pr, pi) => {
     const home = teamById(pr.home);
     const away = teamById(pr.away);
     let hw = 0;
     let aw = 0;
+    let gamesPlayed = 0;
     for (let g = 0; g < pr.games; g++) {
       const seed = league.seed + league.week * 7919 + pi * 131 + g * 17;
+      // desk rain risk can wash out a home game
+      if (home.rainRisk && home.rainRisk > 0) {
+        const wash = mulberry32(seed + 3)() < home.rainRisk;
+        home.rainRisk = Math.max(0, home.rainRisk - 0.12);
+        if (wash) {
+          league.log.push({
+            w: league.week + 1, t: home.id,
+            txt: 'Rain washes out ' + home.abbr + ' vs ' + away.abbr + ' (game ' + (g + 1) + ')'
+          });
+          continue;
+        }
+      }
       const res = simGame(home, away, seed);
       if (!res.ok) continue;
+      gamesPlayed++;
       if (res.homeRuns > res.awayRuns) {
         hw++;
         home.w++;
@@ -52,14 +74,14 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
       }
     }
     out.series.push({ homeId: home.id, awayId: away.id, hw, aw });
-    // sweeps
-    if (hw === pr.games) award(home, 'SWEEP', league);
-    if (aw === pr.games) award(away, 'SWEEP', league);
+    // sweeps (only if a full series was played)
+    if (gamesPlayed === pr.games && hw === pr.games) award(home, 'SWEEP', league);
+    if (gamesPlayed === pr.games && aw === pr.games) award(away, 'SWEEP', league);
     if (home.isHuman || away.isHuman) {
-      const results = out.games.slice(-pr.games);
+      const results = out.games.slice(-gamesPlayed);
       const pbps = (league.myPbp || []).filter((m) => m.homeId === home.id && m.awayId === away.id);
-      if (home.isHuman) scoreHumanSeries(home, { won: hw, lost: aw, games: pr.games, isHome: true, results, pbps });
-      if (away.isHuman) scoreHumanSeries(away, { won: aw, lost: hw, games: pr.games, isHome: false, results, pbps });
+      if (home.isHuman) scoreHumanSeries(home, { won: hw, lost: aw, games: Math.max(1, gamesPlayed), isHome: true, results, pbps });
+      if (away.isHuman) scoreHumanSeries(away, { won: aw, lost: hw, games: Math.max(1, gamesPlayed), isHome: false, results, pbps });
     }
   });
 
@@ -68,7 +90,8 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
     const homeGames = pairs.filter((p) => p.home === t.id).reduce((s, p) => s + p.games, 0);
     const rec = stadiumVal(t, 'clubhouse', 'rec', 1.0);
     t.roster.forEach((p) => {
-      p.cond = clamp(p.cond + 30 * rec, 0, 100);
+      const rubber = has(p, 'RUBBER') ? 1.45 : 1;
+      p.cond = clamp(p.cond + 30 * rec * rubber, 0, 100);
       if (p.injured > 0) p.injured--;
       // injury chance
       const risk = (0.012 * (has(p, 'GLASS') ? 2.2 : 1) * (1 + (100 - p.cond) / 90)) / rec;
@@ -78,8 +101,11 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
       }
       // morale drift
       const wp = t.w + t.l ? t.w / (t.w + t.l) : 0.5;
+      const hotheads = t.roster.filter((x) => has(x, 'HOTHEAD')).length;
       let d = (wp - 0.5) * 1.6 + stadiumVal(t, 'clubhouse', 'mor', 0) * 0.12 + (62 - p.morale) * 0.07;
       if (CLASSES[t.cls].key === 'OLD_LION' && p.age >= 31) d = Math.max(d, 0.4);
+      if (hotheads && !has(p, 'HOTHEAD')) d -= hotheads * 0.85;
+      if (CLASSES[t.cls].key === 'OLD_LION' && p.age >= 31 && d < 0) d = 0;
       p.morale = clamp(p.morale + d, 20, 100);
     });
     const w = runEconomy(league, t, homeGames || 0);
@@ -95,6 +121,7 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
     developRoster(league, t);
     applyOpsAp(t);
     t.ap = t.apMax;
+    t.weekBoost = null;
   });
 
   rankTeams(league);

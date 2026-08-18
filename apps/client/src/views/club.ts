@@ -4,6 +4,8 @@ import { esc } from '../ui/dom.js';
 import { M, pctS } from '../ui/format.js';
 import { mark } from '../ui/icons.js';
 import { store } from '../app/store.js';
+import { deskWaiters } from '../app/idle.js';
+import { net } from '../app/net.js';
 import { xpBarHtml } from './helpers.js';
 
 export interface NextOpp {
@@ -95,6 +97,17 @@ export function viewClub(): string {
         </div>
       </div>`;
     }
+  } else if (L.phase === 'regular' && me.weekBoost) {
+    const bits: string[] = [];
+    if (me.weekBoost.patience) bits.push((me.weekBoost.patience > 0 ? '+' : '') + 'patience');
+    if (me.weekBoost.aggression) bits.push((me.weekBoost.aggression > 0 ? '+' : '') + 'aggression');
+    if (me.weekBoost.cond) bits.push((me.weekBoost.cond > 0 ? '+' : '') + 'legs');
+    if (bits.length) {
+      s += `<div class="panel" style="margin-bottom:12px">
+        <div class="eyebrow">This series <b>dugout note</b></div>
+        <p class="dim" style="margin-top:4px">${esc(bits.join(' · '))} from the desk. Clears after the series.</p>
+      </div>`;
+    }
   }
 
   /* next series / phase control */
@@ -109,7 +122,16 @@ export function viewClub(): string {
       <button class="btn bulb" style="margin-top:12px" data-act="offseason">Open the offseason</button></div>`;
   } else if (L.phase === 'regular') {
     const n = nextOpponent();
+    const waiting = net.mode === 'shared' ? deskWaiters(L, me.id) : [];
+    if (waiting.length) {
+      const names = waiting.map((w) => w.name).join(', ');
+      s += `<div class="panel" style="border-color:rgba(255,180,60,.3)">
+        <div class="eyebrow">Waiting on <b>${esc(waiting[0].abbr)}</b></div>
+        <p class="dim" style="margin-top:6px">${esc(names)} ${waiting.length === 1 ? 'has' : 'have'} a matter on the desk. The week cannot turn until they clear it.</p>
+      </div>`;
+    }
     if (n) {
+      const blocked = pending || waiting.length > 0;
       s += `<div class="panel">
         <div class="eyebrow">Week ${L.week + 1} of ${L.weeks} <b>${n.games}-game series</b></div>
         <div style="display:flex;align-items:center;gap:12px">
@@ -120,8 +142,8 @@ export function viewClub(): string {
             <div class="pmeta"><span>${n.opp.w}-${n.opp.l}</span><span>${esc(CLASSES[n.opp.cls].name)}</span></div>
           </div>
         </div>
-        <button class="btn primary" style="margin-top:12px" data-act="series" ${pending ? 'disabled' : ''}>
-          ${pending ? 'Settle your desk first' : 'Play the series'}</button>
+        <button class="btn primary" style="margin-top:12px" data-act="series" ${blocked ? 'disabled' : ''}>
+          ${pending ? 'Settle your desk first' : waiting.length ? 'Waiting on ' + esc(waiting[0].abbr) : 'Play the series'}</button>
         <div class="faint" style="text-align:center;font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.1em">OR PULL DOWN FROM THE TOP</div>
       </div>`;
     }

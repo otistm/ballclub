@@ -1,4 +1,5 @@
 import { ACHIEVEMENTS } from './data/achievements.js';
+import { CLASSES } from './data/classes.js';
 import { clamp } from './rng.js';
 import type {
   GameSummary, MyPbp, PbpEvent, ProgressStats, SkillKey, Team, TeamProgress, WeekXpNote
@@ -91,7 +92,13 @@ export function skillRank(team: Team | null | undefined, skill: SkillKey): numbe
 }
 
 export function scoutFogMul(team?: Team | null): number {
-  return clamp(1 - skillRank(team, 'scout') * 0.07, 0.3, 1);
+  if (!team) return 1;
+  let fog = clamp(1 - skillRank(team, 'scout') * 0.07, 0.3, 1);
+  // analyst staff clears fog; draftVision is the Analyst class perk
+  fog *= clamp(1 - (team.staff.analyst - 50) / 220, 0.72, 1.05);
+  const vision = CLASSES[team.cls]?.mods.draftVision || 0;
+  if (vision > 0) fog *= clamp(1 - vision * 0.35, 0.45, 1);
+  return clamp(fog, 0.25, 1);
 }
 
 export function scoutTickMul(team: Team): number {

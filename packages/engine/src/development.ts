@@ -13,7 +13,8 @@ export function developRoster(league: League, t: Team): void {
     (CLASSES[t.cls].mods.prospectGrowth || 1) *
     (0.7 + t.staff.coach / 200) *
     (0.75 + t.staff.trainer / 280) *
-    farmMul(t);
+    farmMul(t) *
+    (1 + (t.devBonus || 0));
   const mentor = t.roster.some((p) => has(p, 'MENTOR')) ? 1.15 : 1;
   t.roster.forEach((p) => {
     const rng = mulberry32(hashStr(p.id + 'dev' + league.week));

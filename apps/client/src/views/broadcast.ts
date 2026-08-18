@@ -89,6 +89,9 @@ function paintBoard(card: Card, ev?: PbpEvent): void {
   const bases = ev?.bases ?? [false, false, false];
   const me = store.me.id;
 
+  const prevAway = Number(($('#bc-away .sc') as HTMLElement | null)?.textContent || 0);
+  const prevHome = Number(($('#bc-home .sc') as HTMLElement | null)?.textContent || 0);
+
   $('#bc-match').textContent = 'GAME ' + card.n + ' OF ' + card.of;
 
   const side = (t: Team, runs: number, which: 'away' | 'home'): string =>
@@ -102,11 +105,30 @@ function paintBoard(card: Card, ev?: PbpEvent): void {
 
   document.querySelectorAll('#bc-diamond .bag[data-bag]').forEach((el) => {
     const bag = Number((el as HTMLElement).dataset.bag);
-    el.classList.toggle('on', !!bases[bag - 1]);
+    const on = !!bases[bag - 1];
+    const was = el.classList.contains('on');
+    el.classList.toggle('on', on);
+    if (!reduceMotion && on && !was) {
+      anime({ targets: el, scale: [0.4, 1.15, 1], opacity: [0.4, 1], duration: 320, easing: 'easeOutQuad' });
+    }
   });
   document.querySelectorAll('#bc-outs i').forEach((el, i) => {
-    el.classList.toggle('on', i < Math.min(3, outs));
+    const on = i < Math.min(3, outs);
+    const was = el.classList.contains('on');
+    el.classList.toggle('on', on);
+    if (!reduceMotion && on && !was) {
+      anime({ targets: el, scale: [0.5, 1.2, 1], duration: 240, easing: 'easeOutQuad' });
+    }
   });
+
+  if (!reduceMotion) {
+    if (away > prevAway) {
+      anime({ targets: '#bc-away .sc', scale: [1, 1.35, 1], duration: 380, easing: 'easeOutElastic' });
+    }
+    if (home > prevHome) {
+      anime({ targets: '#bc-home .sc', scale: [1, 1.35, 1], duration: 380, easing: 'easeOutElastic' });
+    }
+  }
 }
 
 function paintCall(ev: PbpEvent): void {

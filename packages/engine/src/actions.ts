@@ -18,8 +18,12 @@ import { release, signFA, type ReleaseResult, type SignResult } from './freeagen
 import { resolveScenario, type ScenarioResolution } from './scenarios.js';
 import { rollSponsorOffers, signSponsor, type SignSponsorResult } from './sponsors.js';
 import { upgrade, type UpgradeResult } from './stadium.js';
-import { noteOffice, spendSkill } from './progress.js';
+import { blankProgress, noteOffice, spendSkill } from './progress.js';
+import { runAdvanceIdle, type IdleReport } from './idle.js';
+import { hireStaff, type HireStaffResult, type StaffRole } from './staff.js';
+import { CLASSES } from './data/classes.js';
 import { ROSTER_MAX } from './data/positions.js';
+import { clamp } from './rng.js';
 
 export type GameAction =
   | { t: 'scenario'; teamId: string; side: 'left' | 'right' }
@@ -36,10 +40,19 @@ export type GameAction =
   | { t: 'setVibe'; teamId: string; vibe: string }
   | { t: 'setPrices'; teamId: string; ticket: number; conPrice: number }
   | { t: 'spendSkill'; teamId: string; skill: SkillKey }
+  | { t: 'hireStaff'; teamId: string; role: StaffRole }
+  | { t: 'setLineup'; teamId: string; ids: string[] }
+  | { t: 'setRotation'; teamId: string; ids: string[] }
+  | { t: 'setHook'; teamId: string; bullpenHook: number }
+  | { t: 'setStrategy'; teamId: string; patience: number; aggression: number; bullpenHook: number }
+  | { t: 'clearPendingTrade'; teamId: string }
+  | { t: 'respondTrade'; teamId: string; accept: boolean }
+  | { t: 'claimTeam'; teamId: string; human: HumanConfig; ownerId: string }
   | { t: 'playoffs' }
   | { t: 'offseason' }
-  | { t: 'resign'; teamId: string; playerId: string; offer: number }
-  | { t: 'letgo'; teamId: string; playerId: string };
+  | { t: 'resign'; teamId: string; playerId: string; offer: number; years?: number }
+  | { t: 'letgo'; teamId: string; playerId: string }
+  | { t: 'advanceIdle'; idleTeamIds: string[] };
 
 /** Envelope stored in the action log / sent over the wire. */
 export interface LoggedAction {
@@ -64,6 +77,8 @@ export interface ApplyResult {
   bracket?: Bracket;
   report?: OffseasonReport;
   resigned?: ResignResult;
+  idle?: IdleReport;
+  hired?: HireStaffResult;
 }
 
 /** One-time setup after makeLeague: sponsor offers + desk state for human clubs. */
@@ -129,9 +144,28 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       if (me.roster.length - myOut.length + theirOut.length > ROSTER_MAX) {
         return { ok: false, err: 'That deal puts you over ' + ROSTER_MAX };
       }
+      // human-to-human: park the offer on their desk instead of auto-accepting
+      if (them.isHuman) {
+        if (me.ap < 1) return { ok: false, err: 'Out of actions' };
+        me.ap -= 1;
+        them.inboxTrade = {
+          fromId: me.id,
+          give: myOut.map((p) => p.id),
+          get: theirOut.map((p) => p.id)
+        };
+        league.log.push({
+          w: league.week, trade: true,
+          txt: me.abbr + ' faxed a deal to ' + them.abbr
+        });
+        return { ok: true };
+      }
       if (me.ap < 1) return { ok: false, err: 'Out of actions' };
       me.ap -= 1;
       const r = execTrade(league, me, them, myOut, theirOut);
+      if (!r.ok) me.ap += 1;
+      if (r.ok && me.pendingTrade && me.pendingTrade.rivalId === action.rivalId) {
+        me.pendingTrade = null;
+      }
       return { ok: r.ok, err: r.ok ? undefined : r.ev.verdict, trade: r };
     }
 
@@ -209,6 +243,20 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       return { ok: r.ok, err: r.err };
     }
 
+    case 'hireStaff': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      const r = hireStaff(league, team, action.role);
+      if (r.ok) {
+        league.log.push({
+          w: league.week + 1, t: team.id,
+          txt: team.abbr + ' upgraded the ' + action.role + ' office'
+        });
+        noteOffice(team, 'builds', 8, 'Staff');
+      }
+      return { ok: r.ok, err: r.err, hired: r };
+    }
+
     case 'playoffs': {
       if (league.phase !== 'playoffs') return { ok: false, err: 'Not playoff time' };
       const bracket = runPlayoffs(league);
@@ -225,7 +273,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
     case 'resign': {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
-      const r = resign(league, team, action.playerId, action.offer);
+      const r = resign(league, team, action.playerId, action.offer, action.years);
       return { ok: r.ok, err: r.err, resigned: r };
     }
 
@@ -235,6 +283,134 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       const r = resign(league, team, action.playerId, 0);
       return { ok: true, resigned: r };
     }
+
+    case 'setLineup': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      if (!action.ids.length) {
+        team.lineupIds = null;
+        return { ok: true };
+      }
+      const ids = action.ids.filter((id) => team.roster.some((p) => p.id === id));
+      if (ids.length < 9) return { ok: false, err: 'Need nine names' };
+      team.lineupIds = ids.slice(0, 9);
+      return { ok: true };
+    }
+
+    case 'setRotation': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      const ids = action.ids.filter((id) => {
+        const p = team.roster.find((x) => x.id === id);
+        return p && p.pos === 'SP';
+      });
+      team.rotationIds = ids.length ? ids : null;
+      return { ok: true };
+    }
+
+    case 'setHook': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      team.strategy.bullpenHook = clamp(action.bullpenHook, 0.05, 0.95);
+      return { ok: true };
+    }
+
+    case 'setStrategy': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      team.strategy.patience = clamp(action.patience, 0.05, 0.95);
+      team.strategy.aggression = clamp(action.aggression, 0.05, 0.95);
+      team.strategy.bullpenHook = clamp(action.bullpenHook, 0.05, 0.95);
+      return { ok: true };
+    }
+
+    case 'clearPendingTrade': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      team.pendingTrade = null;
+      return { ok: true };
+    }
+
+    case 'respondTrade': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      const inbox = team.inboxTrade;
+      if (!inbox) return { ok: false, err: 'No deal on the fax' };
+      const from = league.teams.find((t) => t.id === inbox.fromId);
+      if (!from) {
+        team.inboxTrade = null;
+        return { ok: false, err: 'That club is gone' };
+      }
+      if (!action.accept) {
+        team.inboxTrade = null;
+        league.log.push({
+          w: league.week, trade: true,
+          txt: team.abbr + ' passed on ' + from.abbr
+        });
+        return { ok: true };
+      }
+      // inbox.give = players leaving the offerer (from); inbox.get = players leaving the receiver (team)
+      const theirOut = from.roster.filter((p) => inbox.give.indexOf(p.id) >= 0);
+      const myOut = team.roster.filter((p) => inbox.get.indexOf(p.id) >= 0);
+      if (from.roster.length - theirOut.length + myOut.length > ROSTER_MAX) {
+        return { ok: false, err: 'That deal puts them over ' + ROSTER_MAX };
+      }
+      if (team.roster.length - myOut.length + theirOut.length > ROSTER_MAX) {
+        return { ok: false, err: 'That deal puts you over ' + ROSTER_MAX };
+      }
+      team.inboxTrade = null;
+      const r = execTrade(league, from, team, theirOut, myOut, true);
+      return { ok: r.ok, err: r.ok ? undefined : r.ev.verdict, trade: r };
+    }
+
+    case 'claimTeam': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      if (team.isHuman) return { ok: false, err: 'That club is taken' };
+      const h = action.human;
+      team.isHuman = true;
+      team.ownerId = action.ownerId;
+      team.name = h.name;
+      team.city = h.city;
+      team.mascot = h.mascot;
+      team.cls = h.cls;
+      team.color = h.color;
+      team.glyph = h.glyph;
+      team.vibe = h.vibe;
+      team.staff = { ...CLASSES[h.cls].staff };
+      team.strategy = { ...CLASSES[h.cls].strategy };
+      team.abbr = (h.city.replace(/[^A-Za-z]/g, '').slice(0, 2) + h.mascot.slice(0, 1)).toUpperCase();
+      if (!team.progress) team.progress = blankProgress();
+      if (league.phase === 'regular') team.deskPending = true;
+      rollSponsorOffers(league, team);
+      league.log.push({
+        w: league.week + 1, t: team.id,
+        txt: h.name + ' take the job in ' + h.city
+      });
+      return { ok: true };
+    }
+
+    case 'advanceIdle': {
+      if (!action.idleTeamIds.length) return { ok: false, err: 'Nobody is idle' };
+      const idle = runAdvanceIdle(league, action.idleTeamIds);
+      return { ok: true, idle };
+    }
+  }
+}
+
+/** Which club an action mutates, if any — used by the server for ownership checks. */
+export function actionTeamId(a: GameAction): string | null {
+  switch (a.t) {
+    case 'week':
+    case 'advanceDraft':
+    case 'playoffs':
+    case 'offseason':
+    case 'advanceIdle':
+      return null;
+    case 'claimTeam':
+      return a.teamId;
+    default:
+      return 'teamId' in a ? (a as { teamId: string }).teamId : null;
   }
 }
 

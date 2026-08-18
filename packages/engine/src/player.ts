@@ -75,6 +75,7 @@ export function genPlayer(rng: Rng, ids: IdSource, opts: GenPlayerOpts = {}): Pl
     pos,
     age,
     bats: rng() < 0.28 ? 'L' : rng() < 0.05 ? 'S' : 'R',
+    throws: rng() < 0.28 ? 'L' : 'R',
     traits: [],
     r: {} as Ratings,
     ovr: 0,

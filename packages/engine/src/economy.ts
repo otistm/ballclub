@@ -27,6 +27,7 @@ export function runEconomy(league: League, team: Team, gamesHome: number): WeekF
     (s, p) => s + (has(p, 'FANFAVE') ? 0.04 : 0) + Math.max(0, p.ovr - 80) * 0.003,
     0
   );
+  const faveRev = 1 + team.roster.filter((p) => has(p, 'FANFAVE')).length * 0.06;
 
   let att =
     cap *
@@ -49,12 +50,18 @@ export function runEconomy(league: League, team: Team, gamesHome: number): WeekF
     s.met = ok;
   });
 
-  const revenue = (gate + conc + merch) * (mods.revenue || 1) * opsRevMul(team) + sponsor;
-  const payroll = team.roster.reduce((s, p) => s + p.salary, 0) / league.weeks;
+  const revenue = (gate + conc + merch) * (mods.revenue || 1) * opsRevMul(team) * faveRev + sponsor;
+  const annualPayroll = team.roster.reduce((s, p) => s + p.salary, 0);
+  const payroll = annualPayroll / league.weeks;
   const staffCost = Object.values(team.staff).reduce((a, b) => a + b, 0) * 220;
   const upkeep =
     26000 + (Object.keys(team.stadium) as StadiumKey[]).reduce((s, k) => s + team.stadium[k] * 14000, 0);
-  const cost = payroll + staffCost + upkeep;
+  // soft luxury: indie-league tax over $2.4M annual payroll
+  const LUXURY_LINE = 2400000;
+  const luxury = annualPayroll > LUXURY_LINE
+    ? Math.round(((annualPayroll - LUXURY_LINE) * 0.35) / league.weeks)
+    : 0;
+  const cost = payroll + staffCost + upkeep + luxury;
   const net = Math.round(revenue - cost);
   team.cash += net;
   team.wk = {
@@ -67,7 +74,8 @@ export function runEconomy(league: League, team: Team, gamesHome: number): WeekF
     merch: Math.round(merch),
     sponsor: Math.round(sponsor),
     payroll: Math.round(payroll),
-    sellout
+    sellout,
+    luxury: luxury || undefined
   };
 
   // trust drift

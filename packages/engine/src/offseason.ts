@@ -1,4 +1,5 @@
 import { clamp, gauss, hashStr, mulberry32, RI, shuffle } from './rng.js';
+import { CLASSES } from './data/classes.js';
 import { ROSTER_MAX, ROSTER_MIN } from './data/positions.js';
 import { SCENARIOS } from './data/scenarios.js';
 import { aiEvalDraft } from './draft.js';
@@ -59,13 +60,20 @@ export function startOffseason(league: League): OffseasonReport {
       }
       p.st = blankHitStats();
       p.pst = blankPitStats();
-      p.salary = salaryFor(p);
       if (p.years <= 0) {
+        // free agents to-be: mark to market ask
+        p.salary = salaryFor(p);
         report.expiring.push({
           teamId: t.id, id: p.id, name: p.name, ovr: p.ovr,
           ask: Math.round((p.salary * 1.15) / 5000) * 5000
         });
         p.expiring = true;
+      } else {
+        // still under contract: arb-ish raise, salary otherwise locked
+        const market = salaryFor(p);
+        const arb = Math.round((p.salary * 1.08) / 5000) * 5000;
+        p.salary = Math.max(p.salary, Math.min(market, arb));
+        p.expiring = false;
       }
       keep.push(p);
     });
@@ -110,7 +118,8 @@ export function startOffseason(league: League): OffseasonReport {
   league.results = [];
   league.log = [];
   league.bracket = null;
-  league.draftRounds = 6;
+  const extraRounds = Math.max(0, ...league.teams.map((t) => CLASSES[t.cls].mods.extraRounds || 0));
+  league.draftRounds = 6 + extraRounds;
   league.draftPool = [];
   for (let i = 0; i < 8 * league.draftRounds + 16; i++) {
     league.draftPool.push(
@@ -152,7 +161,9 @@ export interface ResignResult {
   salary?: number;
 }
 
-export function resign(league: League, team: Team, playerId: string, offer: number): ResignResult {
+export function resign(
+  league: League, team: Team, playerId: string, offer: number, years?: number
+): ResignResult {
   const p = team.roster.find((x) => x.id === playerId);
   if (!p || !p.expiring) return { ok: false, err: 'Not up for renewal' };
   const ask = Math.round((p.salary * 1.15) / 5000) * 5000;
@@ -164,7 +175,8 @@ export function resign(league: League, team: Team, playerId: string, offer: numb
     return { ok: false, err: 'He turned it down and hit the market', lost: true };
   }
   p.salary = offer;
-  p.years = RI(mulberry32(hashStr(p.id)), 2, 4);
+  const term = years != null ? clamp(Math.round(years), 1, 4) : RI(mulberry32(hashStr(p.id)), 2, 4);
+  p.years = term;
   p.expiring = false;
   p.morale = clamp(p.morale + 6, 20, 100);
   return { ok: true, salary: offer };

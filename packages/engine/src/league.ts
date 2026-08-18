@@ -153,10 +153,10 @@ export function makeLeague(seed: number, human?: HumanConfig | null): League {
     }
   });
 
-  // draft pool
-  const extra = league.teams.some((t) => t.isHuman && CLASSES[t.cls].mods.extraRounds) ? 2 : 0;
-  league.draftRounds = 12;
-  const poolSize = 8 * league.draftRounds + 24 + extra * 8;
+  // draft pool — Farmer (and any extraRounds class) runs two rounds deeper
+  const extra = Math.max(0, ...league.teams.map((t) => (t.isHuman ? CLASSES[t.cls].mods.extraRounds || 0 : 0)));
+  league.draftRounds = 12 + extra;
+  const poolSize = 8 * league.draftRounds + 24;
   for (let i = 0; i < poolSize; i++) {
     const tier = gauss(rng, -0.15, 0.95);
     const p = genPlayer(rng, ids, { tier, age: Math.round(Math.min(34, Math.max(19, gauss(rng, 24.5, 3.6)))), scouted: 0 });

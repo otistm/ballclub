@@ -217,6 +217,14 @@ h3{font-size:16px}
 .povr small{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.08em;color:var(--chalk-faint);margin-top:2px;font-weight:400}
 .fog{color:var(--manila-dim)}
 .cond{position:absolute;left:0;bottom:0;height:2px;background:var(--turf);transition:width .4s}
+.prow-wrap{position:relative}
+.prow-wrap .rowacts{
+  display:flex;gap:4px;justify-content:flex-end;padding:0 4px 8px;
+}
+.chip.sm{padding:4px 8px;font-size:10px;min-width:28px}
+.rslider{
+  width:100%;margin:2px 0 10px;accent-color:var(--team);height:28px;
+}
 .cond.low{background:var(--bulb)}
 .cond.bad{background:var(--rust)}
 
@@ -386,7 +394,12 @@ h3{font-size:16px}
 .troph .nm{font-family:var(--mono);font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--chalk-faint);line-height:1.25}
 .troph.won .nm{color:var(--manila)}
 .troph .cnt{position:absolute;top:4px;right:5px;font-family:var(--mono);font-size:9px;color:var(--bulb)}
-.shine{position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.16) 50%,transparent 60%);transform:translateX(-100%)}
+.shine{position:absolute;inset:0;background:linear-gradient(115deg,transparent 40%,rgba(255,255,255,.16) 50%,transparent 60%);transform:translateX(-100%);pointer-events:none}
+.troph.won .shine{animation:shine-sweep 2.4s ease-in-out infinite}
+@keyframes shine-sweep{
+  0%{transform:translateX(-100%)}
+  60%,100%{transform:translateX(100%)}
+}
 
 /* ---------- GM office / XP ---------- */
 .xpwrap{margin:4px 0 10px}
