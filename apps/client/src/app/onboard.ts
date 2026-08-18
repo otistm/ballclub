@@ -56,13 +56,15 @@ export const OB = {
 
     if (OB.step === 0) {
       top = '';
-      body = `<div style="height:100%;display:flex;flex-direction:column;justify-content:center;padding-bottom:40px">
-        <div class="hero-title" id="hero">BALL<br>CLUB</div>
-        <div class="hero-sub">a shared-world franchise sim</div>
-        <p class="dim" style="margin-top:22px;font-size:16px;line-height:1.5;max-width:19em">
-          You are not the manager. You are the whole front office — the draft board, the payroll, the concession margins,
-          the man who decides whether the tarp crew gets overtime.</p>
-        <p class="faint" style="margin-top:14px;font-size:14px">Eight clubs. One league. Eighteen weeks a season.</p>
+      body = `<div class="hero-wrap">
+        <div class="hero-card">
+          <div class="hero-title" id="hero">BALL<br>CLUB</div>
+          <div class="hero-sub">a shared-world franchise sim</div>
+          <p class="hero-blurb">
+            You are not the manager. You are the whole front office — the draft board, the payroll, the concession margins,
+            the man who decides whether the tarp crew gets overtime.</p>
+          <p class="hero-note">Eight clubs. One league. Eighteen weeks a season.</p>
+        </div>
       </div>`;
       foot = '<button class="btn primary" data-ob="next">Take the job</button>';
     }
@@ -162,11 +164,12 @@ export const OB = {
       foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn bulb" data-ob="create" disabled>Open the draft</button>';
     }
 
+    $('#onboard').classList.toggle('splash', OB.step === 0);
     $('#onboard').innerHTML = `<div id="obtop">${top}</div><div id="obbody">${body}</div><div id="obfoot">${foot}</div>`;
 
     if (OB.step === 0) {
       anime({ targets: '#hero', opacity: [0, 1], translateY: [26, 0], duration: 900, easing: 'easeOutExpo' });
-      anime({ targets: '.hero-sub, #obbody p', opacity: [0, 1], translateY: [14, 0], delay: anime.stagger(110, { start: 260 }), duration: 600 });
+      anime({ targets: '.hero-sub, .hero-blurb, .hero-note', opacity: [0, 1], translateY: [14, 0], delay: anime.stagger(110, { start: 260 }), duration: 600 });
     } else {
       anime({ targets: '#obbody > *', opacity: [0, 1], translateY: [16, 0], delay: anime.stagger(45), duration: 420, easing: 'easeOutQuad' });
     }

@@ -86,7 +86,7 @@ export function viewDraft(): string {
       const i = stack.length - 1 - ri;
       const so = shownOvr(p, meFog());
       const fog = so.exact ? 'FILE IN' : 'ESTIMATE';
-      s += `<div class="dcard" data-di="${i}" data-id="${p.id}" style="transform:translateY(${i * 9}px) scale(${1 - i * 0.035});opacity:${i === 2 ? 0.5 : 1};z-index:${9 - i}">
+      s += `<div class="dcard" data-di="${i}" data-id="${p.id}" style="transform:translateY(${i * 7}px) scale(${1 - i * 0.03});opacity:${i === 2 ? 0.55 : 1};z-index:${9 - i}">
         <div class="dcard-in draft">
           <div class="tag"><span>${p.pos}</span><span>${fog}</span></div>
           <h2 style="font-size:31px">${esc(p.name)}</h2>
@@ -108,7 +108,7 @@ export function viewDraft(): string {
         </div></div>`;
     });
     s += `</div>
-      <div class="btn-row" style="margin-bottom:12px">`;
+      <div class="btn-row">`;
     if (top && top.scouted < 1) {
       s += `<button class="btn ghost sm" data-act="scoutone" data-id="${top.id}" ${me.ap < 1 ? 'disabled' : ''}>Scout this file · 1 action</button>`;
     }

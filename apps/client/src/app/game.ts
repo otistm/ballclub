@@ -9,7 +9,7 @@ import {
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
 import { $, closeSheet, esc, toast } from '../ui/dom.js';
-import { haptic, drag, longPress, reduceMotion } from '../ui/ux.js';
+import { haptic, drag, longPress, reduceMotion, swallowClick } from '../ui/ux.js';
 import { ic } from '../ui/icons.js';
 import { M, hexToRgb } from '../ui/format.js';
 import { vibeSwatch } from '../ui/gl.js';
@@ -179,6 +179,7 @@ function wireScenarioDeck(): void {
       if (fired) return;
       if (Math.abs(dx) > 104 || Math.abs(vx) > 0.55) {
         fired = true;
+        swallowClick();
         const side = dx > 0 ? 'right' : 'left';
         haptic.ok();
         anime({
@@ -322,6 +323,7 @@ function wireDraftDeck(): void {
       const next = dx < -100;
       if (take) {
         fired = true;
+        swallowClick();
         haptic.big();
         anime({
           targets: top, translateX: 480, rotate: 20, opacity: 0, duration: 320, easing: 'easeInQuad',
@@ -329,6 +331,7 @@ function wireDraftDeck(): void {
         });
       } else if (next) {
         fired = true;
+        swallowClick();
         haptic.tap();
         anime({
           targets: top, translateX: -480, rotate: -20, opacity: 0, duration: 300, easing: 'easeInQuad',

@@ -33,12 +33,24 @@ export interface DragOpts {
   onCancel?: () => void;
 }
 
+/** Kill the click browsers synthesize after a touch swipe. */
+export function swallowClick(ms = 520): void {
+  const block = (e: Event): void => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.removeEventListener('click', block, true);
+  };
+  document.addEventListener('click', block, true);
+  window.setTimeout(() => document.removeEventListener('click', block, true), ms);
+}
+
 /** Drag gesture on an element: onStart/onMove/onEnd with dx,dy,vx. */
 export function drag(el: HTMLElement, o: DragOpts): { destroy(): void } {
   let id: number | null = null;
   let x0 = 0, y0 = 0, t0 = 0, lx = 0, lt = 0, vx = 0;
   let active = false;
   let locked: DragAxis = null;
+  let lastTouch = 0;
 
   const pt = (e: TouchEvent | MouseEvent) => ('touches' in e ? e.touches[0] : e);
 
@@ -91,11 +103,15 @@ export function drag(el: HTMLElement, o: DragOpts): { destroy(): void } {
     if (o.onEnd) o.onEnd(dx, dy, vx, locked, performance.now() - t0);
   }
 
-  el.addEventListener('touchstart', down, { passive: true });
+  el.addEventListener('touchstart', (e) => {
+    lastTouch = performance.now();
+    down(e);
+  }, { passive: true });
   el.addEventListener('touchmove', move, { passive: false });
   el.addEventListener('touchend', up, { passive: true });
   el.addEventListener('touchcancel', up, { passive: true });
   el.addEventListener('mousedown', (e) => {
+    if (performance.now() - lastTouch < 650) return;
     down(e);
     const mm = (ev: MouseEvent) => move(ev);
     const mu = (ev: MouseEvent) => {
