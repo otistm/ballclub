@@ -64,13 +64,17 @@ button{cursor:pointer}
 }
 #mqrow{height:var(--mq-h);display:flex;align-items:center;gap:8px;padding:0 10px}
 #crest{
-  flex:0 0 auto;width:38px;height:38px;border-radius:2px;position:relative;
-  display:grid;place-items:center;
+  flex:0 0 auto;width:38px;height:38px;border-radius:50%;position:relative;
+  display:grid;place-items:center;overflow:hidden;
   background:var(--team);
-  clip-path:polygon(50% 0,100% 16%,100% 74%,50% 100%,0 74%,0 16%);
   box-shadow:0 0 16px var(--team-soft)
 }
-#crest svg{width:22px;height:22px;fill:var(--team-ink)}
+#crest img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.mark{
+  flex:0 0 44px;width:44px;height:44px;border-radius:50%;overflow:hidden;
+  display:grid;place-items:center;box-shadow:0 0 14px rgba(0,0,0,.35)
+}
+.mark img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 #mq{flex:1 1 auto;height:34px;display:block;image-rendering:pixelated}
 #mqmeta{flex:0 0 auto;display:flex;flex-direction:column;align-items:flex-end;gap:1px;padding-right:2px}
 .mq-ap{display:flex;gap:3px}
@@ -264,6 +268,12 @@ h3{font-size:16px}
   text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
   color:var(--chalk-faint);text-transform:uppercase;margin-bottom:11px
 }
+.needrow{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.need{
+  font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  padding:4px 7px;border:1px solid var(--line);border-radius:2px;color:var(--chalk-faint)
+}
+.need.hot{border-color:rgba(255,180,60,.45);color:var(--manila)}
 
 /* ---------- draft card ---------- */
 .dcard-in.draft{
@@ -408,6 +418,30 @@ h3{font-size:16px}
 #obsteps i.done{background:var(--chalk-faint)}
 #obbody{flex:1 1 auto;overflow-y:auto;padding:0 18px;-webkit-overflow-scrolling:touch}
 #obfoot{flex:0 0 auto;padding:12px 18px calc(var(--safe-b) + 16px);display:flex;gap:9px}
+#obfoot .btn{flex:1;width:auto}
+.sigwrap{margin-top:4px}
+.sigpad{
+  position:relative;height:148px;margin-top:6px;
+  background:rgba(255,255,255,.22);
+  border:1px dashed rgba(29,33,28,.32);border-radius:2px;
+  touch-action:none;overflow:hidden
+}
+.sigpad canvas{
+  position:absolute;inset:0;width:100%;height:100%;
+  touch-action:none;z-index:1;display:block;cursor:crosshair;
+  user-select:none;-webkit-user-select:none
+}
+.sigbase{
+  position:absolute;left:12px;right:12px;bottom:22px;
+  display:flex;align-items:flex-end;gap:8px;pointer-events:none;z-index:0
+}
+.sigbase b{font-family:var(--dsp);font-size:22px;line-height:1;color:#7a6f52}
+.sigbase i{flex:1;height:1px;background:rgba(29,33,28,.38);margin-bottom:3px}
+.sigclear{
+  margin-top:8px;padding:0;width:auto;
+  font-family:var(--mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;
+  color:#6b6248
+}
 
 .hero-title{font-family:var(--dsp);font-size:64px;line-height:.84;letter-spacing:-.01em}
 .hero-sub{font-family:var(--mono);font-size:10px;letter-spacing:.3em;text-transform:uppercase;color:var(--bulb);margin-top:12px}
@@ -426,19 +460,19 @@ h3{font-size:16px}
 #wheel{touch-action:none;display:block}
 #wheelcrest{
   position:absolute;width:78px;height:78px;display:grid;place-items:center;
-  background:var(--team);clip-path:polygon(50% 0,100% 16%,100% 74%,50% 100%,0 74%,0 16%);
+  background:var(--team);border-radius:50%;overflow:hidden;
   box-shadow:0 0 32px var(--team-soft)
 }
-#wheelcrest svg{width:44px;height:44px;fill:var(--team-ink)}
+#wheelcrest img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 
 .glyphgrid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
 .gcell{
-  aspect-ratio:1;display:grid;place-items:center;border:1px solid var(--line);border-radius:3px;
-  background:rgba(0,0,0,.28);transition:all .15s
+  aspect-ratio:1;display:grid;place-items:center;padding:0;
+  border:2px solid transparent;border-radius:50%;overflow:hidden;
+  background:var(--team);transition:transform .15s,box-shadow .15s,border-color .15s
 }
-.gcell svg{width:24px;height:24px;fill:var(--chalk-dim)}
-.gcell.on{border-color:var(--team);background:var(--team-soft)}
-.gcell.on svg{fill:var(--team)}
+.gcell img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.gcell.on{border-color:var(--chalk);box-shadow:0 0 0 2px var(--team),0 0 22px var(--team-soft);transform:scale(1.06)}
 
 .classcard{
   border:1px solid var(--line-hi);border-radius:5px;padding:15px;
@@ -447,12 +481,13 @@ h3{font-size:16px}
 }
 .classcard.on{border-color:var(--team);box-shadow:0 0 0 1px var(--team),0 0 30px var(--team-soft)}
 .classcard .cc-top{display:flex;align-items:center;gap:11px}
-.classcard .cc-ic{flex:0 0 42px;height:42px;display:grid;place-items:center;border-radius:2px;background:rgba(0,0,0,.34);border:1px solid var(--line)}
-.classcard.on .cc-ic{background:var(--team-soft);border-color:var(--team)}
-.classcard .cc-ic svg{width:24px;height:24px;fill:var(--chalk-dim)}
-.classcard.on .cc-ic svg{fill:var(--team)}
+.classcard .cc-ic{flex:0 0 42px;width:42px;height:42px;display:grid;place-items:center;border-radius:50%;overflow:hidden;background:var(--team);border:2px solid transparent}
+.classcard.on .cc-ic{border-color:var(--chalk);box-shadow:0 0 14px var(--team-soft)}
+.classcard .cc-ic img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 .classcard .cc-tag{font-family:var(--mono);font-size:9px;letter-spacing:.16em;text-transform:uppercase;color:var(--bulb)}
 .classcard .cc-bl{font-size:14px;color:var(--chalk-dim);line-height:1.42;margin:11px 0 0}
+.classcard .perks{display:none;margin-top:4px}
+.classcard.on .perks{display:block}
 .perk{display:flex;gap:8px;font-size:13.5px;color:var(--chalk-dim);margin-top:7px;align-items:flex-start}
 .perk i{flex:0 0 auto;width:4px;height:4px;border-radius:50%;background:var(--bulb);margin-top:7px}
 

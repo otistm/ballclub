@@ -1,5 +1,5 @@
-/** App chrome: WebGL backdrop, scoreboard marquee, theme colour, AP dots. */
-import { VIBES, draftCurrent } from '@ballclub/engine';
+/** App chrome: WebGL backdrop, scoreboard marquee, theme color, AP dots. */
+import { VIBES, draftStatus } from '@ballclub/engine';
 import { Backdrop, createMarquee, type MarqueeApi } from '../ui/gl.js';
 import { g } from '../ui/icons.js';
 import { $ } from '../ui/dom.js';
@@ -35,8 +35,15 @@ function marqueePages(): string[] {
   const me = store.me;
   const p: string[] = [me.name];
   if (L.phase === 'draft') {
-    const cur = draftCurrent(L);
-    p.push(cur ? 'DRAFT · ROUND ' + cur.round : 'DRAFT COMPLETE');
+    const st = draftStatus(L, me.id);
+    if (!st.cur) {
+      p.push('DRAFT COMPLETE');
+    } else if (st.mine) {
+      p.push('YOUR PICK  ·  ' + st.overall + ' OF ' + st.total);
+    } else {
+      const club = L.teams.find((t) => t.id === st.cur!.teamId);
+      p.push((club ? club.abbr : 'WAIT') + '  ON THE CLOCK');
+    }
   } else if (L.phase === 'playoffs') {
     p.push('POSTSEASON');
   } else if (L.phase === 'offseason') {
@@ -53,11 +60,12 @@ function marqueePages(): string[] {
 
 export function refreshChrome(): void {
   if (!store.league) return;
+  const L = store.league;
   const me = store.me;
   $('#crest').innerHTML = g(me.glyph);
   marquee.set(marqueePages());
   const dots: string[] = [];
   for (let i = 0; i < me.apMax; i++) dots.push('<i class="ap-dot' + (i < me.ap ? ' on' : '') + '"></i>');
   $('#apdots').innerHTML = dots.join('');
-  $('#aplab').textContent = me.ap + ' left';
+  $('#aplab').textContent = L.phase === 'draft' ? 'scout · ' + me.ap : me.ap + ' left';
 }

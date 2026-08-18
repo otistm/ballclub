@@ -3,7 +3,7 @@ import type { GMClass } from '../types.js';
 export const CLASSES: Record<string, GMClass> = {
   ANALYST: {
     key: 'ANALYST', name: 'The Analyst', tag: 'Numbers first',
-    glyph: 'sigma',
+    glyph: 'compass',
     blurb: 'You hired a war room before you hired a hitting coach. Your staff sees through the noise — but the clubhouse thinks you talk like a spreadsheet.',
     staff: { scout: 74, coach: 52, trainer: 54, analyst: 84 },
     bias: { eye: 7, con: 2, pow: -1, spd: -3, fld: 2, ctl: 5, stuff: -1, mov: 3, stam: 0 },
@@ -14,7 +14,7 @@ export const CLASSES: Record<string, GMClass> = {
   },
   OLD_LION: {
     key: 'OLD_LION', name: 'The Old Lion', tag: 'Thirty years in the dugout',
-    glyph: 'lion',
+    glyph: 'bear',
     blurb: 'You have managed longer than most of your players have been alive. Veterans run through walls for you. The front office thinks you are a fossil.',
     staff: { scout: 58, coach: 80, trainer: 66, analyst: 30 },
     bias: { eye: 3, con: 6, pow: 0, spd: 2, fld: 5, ctl: 5, stuff: 0, mov: 1, stam: 6 },
@@ -25,7 +25,7 @@ export const CLASSES: Record<string, GMClass> = {
   },
   SHOWMAN: {
     key: 'SHOWMAN', name: 'The Showman', tag: 'Put people in seats',
-    glyph: 'megaphone',
+    glyph: 'star',
     blurb: 'Fireworks every Friday, a bat-dog, a scoreboard that costs more than your bullpen. Baseball is the excuse; the show is the product.',
     staff: { scout: 44, coach: 58, trainer: 52, analyst: 46 },
     bias: { eye: -3, con: -2, pow: 9, spd: 0, fld: -2, ctl: -3, stuff: 6, mov: -1, stam: -2 },
@@ -36,7 +36,7 @@ export const CLASSES: Record<string, GMClass> = {
   },
   FARMER: {
     key: 'FARMER', name: 'The Farmer', tag: 'Grow your own',
-    glyph: 'sprout',
+    glyph: 'ball',
     blurb: 'You do not buy ballplayers. You raise them. Give it three seasons and the whole league will be picking from your orchard.',
     staff: { scout: 76, coach: 62, trainer: 74, analyst: 40 },
     bias: { eye: 2, con: 2, pow: -3, spd: 6, fld: 7, ctl: 2, stuff: 2, mov: 2, stam: 2 },
@@ -47,7 +47,7 @@ export const CLASSES: Record<string, GMClass> = {
   },
   CLOSER: {
     key: 'CLOSER', name: 'The Closer', tag: 'Nobody scores late',
-    glyph: 'flame',
+    glyph: 'bolt',
     blurb: 'You pitched the ninth for eleven years and you never once looked at the dugout. Your teams are built backwards from the last out.',
     staff: { scout: 50, coach: 64, trainer: 56, analyst: 52 },
     bias: { eye: 0, con: 0, pow: 1, spd: 3, fld: 3, ctl: 3, stuff: 8, mov: 5, stam: -5 },
@@ -58,7 +58,7 @@ export const CLASSES: Record<string, GMClass> = {
   },
   BROKER: {
     key: 'BROKER', name: 'The Broker', tag: 'Everyone is available',
-    glyph: 'handshake',
+    glyph: 'skull',
     blurb: 'You have never been sentimental about a ballplayer in your life. Every man on the roster is a number waiting for a better number.',
     staff: { scout: 66, coach: 46, trainer: 46, analyst: 62 },
     bias: { eye: 1, con: 1, pow: 1, spd: 1, fld: 0, ctl: 1, stuff: 1, mov: 0, stam: 0 },

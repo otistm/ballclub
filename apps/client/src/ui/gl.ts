@@ -60,7 +60,7 @@ void main(){
   lt += tower(suv, vec2(0.50*asp.x, 1.035), 1.7, t+4.7) * 0.85;
   col += uBulb * lt * 0.30 * uBloom;
 
-  /* team-colour wash sweeping slowly across the plate */
+  /* team-color wash sweeping slowly across the plate */
   float sweep = sin(uv.y*2.3 - t*0.16) * 0.5 + 0.5;
   float band = exp(-pow((uv.y-0.34-0.10*sin(t*0.21)),2.0)*7.0);
   col += uTeam * band * sweep * 0.115 * uSweep;

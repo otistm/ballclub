@@ -6,4 +6,9 @@ export const CITIES: readonly string[] = ['Ashland', 'Belmont', 'Cedar Falls', '
 
 export const MASCOTS: readonly string[] = ['Ironsides', 'Wolves', 'Bandits', 'Larks', 'Sawmen', 'Comets', 'Cranks', 'Millers', 'Hollers', 'Kingfishers', 'Ramblers', 'Anvils', 'Foxes', 'Pilots', 'Grackles', 'Stags', 'Tinsmiths', 'Marauders', 'Beacons', 'Drovers', 'Nighthawks', 'Quarrymen', 'Reapers', 'Sparrows', 'Thistles', 'Vagabonds', 'Wardens', 'Yeomen', 'Bellringers', 'Cyclones', 'Dredgers', 'Ferrymen', 'Gargoyles', 'Hounds', 'Jackals', 'Knights', 'Lamplighters', 'Moths', 'Owls', 'Prospectors'];
 
-export const GLYPHS: readonly string[] = ['anvil', 'wolf', 'lark', 'comet', 'gear', 'flame', 'lion', 'sprout', 'megaphone', 'sigma', 'handshake', 'crown', 'anchor', 'bolt', 'moth', 'key', 'skull', 'star', 'shield', 'axe'];
+export const GLYPHS: readonly string[] = [
+  'star', 'trophy', 'ball', 'cap', 'compass',
+  'bomb', 'crown', 'comet', 'bolt', 'vortex',
+  'skull', 'wolf', 'anchor', 'bear', 'volcano',
+  'shark', 'dragon', 'bull', 'eagle', 'panther'
+];

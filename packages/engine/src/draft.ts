@@ -5,18 +5,55 @@ import { shownOvr } from './player.js';
 import { noteOffice } from './progress.js';
 import type { DraftSlot, League, Player, Position, Team } from './types.js';
 
+export const DRAFT_WANT: Partial<Record<Position, number>> = {
+  SP: 5, RP: 5, C: 2, '1B': 1, '2B': 2, '3B': 1, SS: 2, LF: 1, CF: 2, RF: 1, DH: 1
+};
+
 export function draftCurrent(league: League): DraftSlot | null {
   return league.draftOrder[league.draftIdx] || null;
+}
+
+export interface DraftStatus {
+  cur: DraftSlot | null;
+  overall: number;
+  total: number;
+  mine: boolean;
+  untilYou: number;
+  yoursLeft: number;
+}
+
+export function draftStatus(league: League, teamId: string): DraftStatus {
+  const cur = draftCurrent(league);
+  let untilYou = 0;
+  for (let i = league.draftIdx; i < league.draftOrder.length; i++) {
+    if (league.draftOrder[i].teamId === teamId) break;
+    untilYou++;
+  }
+  const yoursLeft = league.draftOrder.slice(league.draftIdx).filter((s) => s.teamId === teamId).length;
+  return {
+    cur,
+    overall: league.draftIdx + 1,
+    total: league.draftOrder.length,
+    mine: !!(cur && cur.teamId === teamId),
+    untilYou,
+    yoursLeft
+  };
+}
+
+export function rosterGaps(team: Team): { pos: Position; have: number; want: number }[] {
+  const counts: Partial<Record<Position, number>> = {};
+  team.roster.forEach((x) => (counts[x.pos] = (counts[x.pos] || 0) + 1));
+  return (Object.keys(DRAFT_WANT) as Position[])
+    .map((pos) => ({ pos, have: counts[pos] || 0, want: DRAFT_WANT[pos]! }))
+    .filter((g) => g.have < g.want)
+    .sort((a, b) => (b.want - b.have) - (a.want - a.have));
 }
 
 export function needScore(team: Team, p: Player): number {
   const counts: Partial<Record<Position, number>> = {};
   team.roster.forEach((x) => (counts[x.pos] = (counts[x.pos] || 0) + 1));
-  const want: Partial<Record<Position, number>> = {
-    SP: 5, RP: 5, C: 2, '1B': 1, '2B': 2, '3B': 1, SS: 2, LF: 1, CF: 2, RF: 1, DH: 1
-  };
   const have = counts[p.pos] || 0;
-  const need = (want[p.pos] || 1) - have;
+  const need = (DRAFT_WANT[p.pos] || 1) - have;
   return need > 0 ? 1 + need * 0.06 : 0.72;
 }
 

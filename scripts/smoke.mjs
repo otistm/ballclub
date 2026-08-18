@@ -57,18 +57,18 @@ await step('take the job', async () => {
   await shot('02-name');
 });
 
-await step('name -> colours', async () => {
-  await clickText('Next');
-  await page.waitForSelector('#wheel');
-  await page.locator('.gcell').nth(5).click();
-  await shot('03-colours');
-});
-
-await step('colours -> class', async () => {
+await step('name -> class', async () => {
   await clickText('Next');
   await page.waitForSelector('.classcard');
   await page.locator('.classcard').nth(2).click();
-  await shot('04-class');
+  await shot('03-class');
+});
+
+await step('class -> colors', async () => {
+  await clickText('Next');
+  await page.waitForSelector('#wheel');
+  await page.locator('.gcell').nth(5).click();
+  await shot('04-colors');
 });
 
 await step('class -> vibe', async () => {
@@ -82,6 +82,17 @@ await step('vibe -> paperwork', async () => {
   await page.waitForSelector('#obcode');
   const code = await page.locator('#obcode').textContent();
   if (!/^[A-Z2-9]{6}$/.test(code || '')) throw new Error('bad league code: ' + code);
+  const sig = page.locator('#sig');
+  await sig.waitFor();
+  const box = await sig.boundingBox();
+  if (!box) throw new Error('no signature pad');
+  await page.mouse.move(box.x + 24, box.y + 58);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 70, box.y + 36, { steps: 8 });
+  await page.mouse.move(box.x + 130, box.y + 78, { steps: 8 });
+  await page.mouse.move(box.x + 210, box.y + 44, { steps: 8 });
+  await page.mouse.up();
+  await page.waitForTimeout(80);
   await shot('06-paperwork');
 });
 

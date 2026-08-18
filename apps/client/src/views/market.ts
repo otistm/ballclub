@@ -1,7 +1,7 @@
 /** Market view: draft board, trades, free agents, scouting. */
 import {
   CLASSES, ROSTER_MAX, TRAITS,
-  aiEvalDraft, draftCurrent, evalTrade, isPitcher, rosterRoom, shownOvr, scoutTickMul, value,
+  aiEvalDraft, draftStatus, evalTrade, isPitcher, rosterGaps, rosterRoom, shownOvr, scoutTickMul, value,
   type Player, type Position
 } from '@ballclub/engine';
 import { esc } from '../ui/dom.js';
@@ -32,65 +32,92 @@ export function viewMarket(): string {
 export function viewDraft(): string {
   const L = store.league!;
   const me = store.me;
-  const cur = draftCurrent(L);
-  if (!cur) return `<div class="empty"><h3>Draft is over</h3><p>Head to the Club tab and start the season.</p></div>`;
-  const onClock = L.teams.find((t) => t.id === cur.teamId)!;
-  const mine = onClock.id === me.id;
+  const st = draftStatus(L, me.id);
+  if (!st.cur) return `<div class="empty"><h3>Draft is over</h3><p>Head to the Club tab. The season is waiting.</p></div>`;
+  const slot = st.cur;
+  const onClock = L.teams.find((t) => t.id === slot.teamId)!;
   const board = boardOrder();
-  const picks = L.log.filter((x) => x.draft).slice(-7).reverse();
-  const pickNo = L.draftIdx + 1;
+  const picks = L.log.filter((x) => x.draft).slice(-6).reverse();
+  const gaps = rosterGaps(me).slice(0, 5);
 
   let s = `<div class="readout" style="margin-bottom:12px">
-    <div class="ro-cell"><div class="k">Round</div><div class="v">${cur.round}</div><div class="s">of ${L.draftRounds}</div></div>
-    <div class="ro-cell"><div class="k">Pick</div><div class="v">${pickNo}</div><div class="s">of ${L.draftOrder.length}</div></div>
-    <div class="ro-cell"><div class="k">Roster</div><div class="v">${me.roster.length}</div><div class="s">max ${ROSTER_MAX}</div></div>
+    <div class="ro-cell"><div class="k">${st.mine ? 'Your pick' : 'On the clock'}</div><div class="v">${st.overall}</div><div class="s">of ${st.total}</div></div>
+    <div class="ro-cell"><div class="k">Round</div><div class="v">${slot.round}</div><div class="s">${st.yoursLeft} left for you</div></div>
+    <div class="ro-cell"><div class="k">Roster</div><div class="v">${me.roster.length}</div><div class="s">of ${ROSTER_MAX}</div></div>
   </div>`;
 
-  if (!mine) {
-    s += `<div class="panel"><div class="eyebrow">On the clock</div>
+  if (gaps.length) {
+    s += `<div class="needrow">` +
+      gaps.map((g) => `<span class="need${g.want - g.have >= 2 ? ' hot' : ''}">${g.pos} ${g.have}/${g.want}</span>`).join('') +
+      `</div>`;
+  }
+
+  const digest = UI.draftDigest;
+  if (digest && (digest.you || digest.then.length)) {
+    s += `<div class="panel" style="margin-bottom:12px">
+      <div class="eyebrow">What just happened</div>`;
+    if (digest.you) s += `<p style="font-size:15px;margin-bottom:6px">You took <b>${esc(digest.you)}</b>.</p>`;
+    if (digest.then.length) {
+      const shown = digest.then.slice(0, 4);
+      s += `<p class="faint" style="font-size:13px;line-height:1.45">${shown.map(esc).join(' · ')}${digest.then.length > 4 ? ' · +' + (digest.then.length - 4) + ' more' : ''}</p>`;
+    } else if (st.mine) {
+      s += `<p class="faint" style="font-size:13px">You're still on the clock.</p>`;
+    }
+    s += `</div>`;
+  }
+
+  if (!st.mine) {
+    const wait = st.untilYou === 1 ? '1 pick until you' : st.untilYou + ' picks until you';
+    s += `<div class="panel">
+      <div class="eyebrow">Waiting</div>
       <h3 style="color:${onClock.color}">${esc(onClock.name)}</h3>
-      <p class="dim" style="margin-top:6px">${esc(CLASSES[onClock.cls].tag)}</p>
-      <button class="btn primary" style="margin-top:12px" data-act="advdraft">Let them pick</button></div>`;
+      <p class="dim" style="margin-top:6px">${esc(wait)}. They pick, then it comes back around.</p>
+      <button class="btn primary" style="margin-top:12px" data-act="advdraft">Play the other clubs</button>
+    </div>`;
   } else {
     UI.draftIdx = Math.min(UI.draftIdx, Math.max(0, board.length - 1));
     const stack = board.slice(UI.draftIdx, UI.draftIdx + 3);
-    s += `<div class="eyebrow">You are on the clock <b>round ${cur.round}</b></div>
-      <div class="swipehint">← pass · swipe up to draft →</div>
+    const top = board[UI.draftIdx];
+    const rank = UI.draftIdx + 1;
+    s += `<div class="eyebrow">Take a player <b>staff list ${rank} of ${board.length}</b></div>
+      <div class="swipehint">← next name · take him →</div>
       <div class="deck" id="drdeck">`;
     stack.slice().reverse().forEach((p, ri) => {
       const i = stack.length - 1 - ri;
       const so = shownOvr(p, meFog());
-      const isP = isPitcher(p);
+      const fog = so.exact ? 'FILE IN' : 'ESTIMATE';
       s += `<div class="dcard" data-di="${i}" data-id="${p.id}" style="transform:translateY(${i * 9}px) scale(${1 - i * 0.035});opacity:${i === 2 ? 0.5 : 1};z-index:${9 - i}">
         <div class="dcard-in draft">
-          <div class="tag"><span>${isP ? 'PITCHER' : 'POSITION PLAYER'}</span><span>#${UI.draftIdx + i + 1} ON YOUR BOARD</span></div>
+          <div class="tag"><span>${p.pos}</span><span>${fog}</span></div>
           <h2 style="font-size:31px">${esc(p.name)}</h2>
           <div class="pmeta" style="font-size:11px;margin-bottom:12px">
-            <span>${p.pos}</span><span>${p.age} years old</span><span>bats ${p.bats}</span><span>${M(p.salary)}</span></div>
+            <span>${p.age} years old</span><span>bats ${p.bats}</span><span>${M(p.salary)}</span></div>
           <div style="display:flex;align-items:flex-end;gap:14px;margin-bottom:12px">
             <div><div class="draft-big${so.exact ? '' : ' fogged'}">${so.exact ? so.v : so.lo + '–' + so.hi}</div>
-              <div class="mq-lab">${so.exact ? 'overall' : 'scout estimate'}</div></div>
+              <div class="mq-lab">${so.exact ? 'overall' : 'scout range'}</div></div>
             ${so.exact && p.pot > p.ovr ? `<div style="padding-bottom:14px"><div style="font-family:var(--dsp);font-size:26px;color:var(--bulb)">${p.pot}</div><div class="mq-lab">ceiling</div></div>` : ''}
           </div>
           <div style="flex:1">${ratingBars(p)}</div>
           ${p.traits.length ? `<div class="pmeta" style="margin-top:10px">${p.traits.map((t) => { const T = TRAITS.find((x) => x.key === t); return T ? '<span class="amber">' + esc(T.name) + '</span>' : ''; }).join('')}</div>` : ''}
           <div class="dchoice">
-            <button data-act="drpass"><div class="ar">← left</div><div class="lb">Pass</div></button>
-            <button data-act="drtake" data-id="${p.id}"><div class="ar">right →</div><div class="lb">Draft him</div></button>
+            <button data-act="drpass"><div class="ar">← left</div><div class="lb">Next name</div></button>
+            <button data-act="drtake" data-id="${p.id}"><div class="ar">right →</div><div class="lb">Take him</div></button>
           </div>
-          <div class="stamp l">PASS</div>
-          <div class="stamp r">DRAFTED</div>
+          <div class="stamp l">NEXT</div>
+          <div class="stamp r">TAKE</div>
         </div></div>`;
     });
     s += `</div>
-      <div class="btn-row" style="margin-bottom:12px">
-        <button class="btn ghost sm" data-act="scoutone" data-id="${board[UI.draftIdx] ? board[UI.draftIdx].id : ''}">Scout him · 1 action</button>
-        <button class="btn ghost sm" data-act="fullboard">Full board</button>
+      <div class="btn-row" style="margin-bottom:12px">`;
+    if (top && top.scouted < 1) {
+      s += `<button class="btn ghost sm" data-act="scoutone" data-id="${top.id}" ${me.ap < 1 ? 'disabled' : ''}>Scout this file · 1 action</button>`;
+    }
+    s += `<button class="btn ghost sm" data-act="fullboard">All remaining names</button>
       </div>`;
   }
 
   if (picks.length) {
-    s += `<div class="eyebrow">Recent picks</div><div class="panel feed">`;
+    s += `<div class="eyebrow">Picked already</div><div class="panel feed">`;
     picks.forEach((p) => {
       s += `<div class="fitem"><div class="w">R${p.round}</div><div class="x">${esc(p.txt)}</div></div>`;
     });

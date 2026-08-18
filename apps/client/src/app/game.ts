@@ -5,7 +5,7 @@
  */
 import {
   ACHIEVEMENTS, SKILL_INFO, TROPHIES, VIBES, achievementById, consumeUnlocks, draftCurrent,
-  nextScenario, rankTeams, shownOvr, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
+  nextScenario, rankTeams, shownOvr, type AutoPick, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
 import { $, closeSheet, esc, toast } from '../ui/dom.js';
@@ -253,6 +253,24 @@ function playSeries(): void {
 }
 
 /* ---------- draft flow ---------- */
+function formatAutoPicks(picks: AutoPick[] | undefined): string[] {
+  if (!picks || !picks.length) return [];
+  const L = store.league!;
+  return picks.map((pk) => {
+    const club = L.teams.find((t) => t.id === pk.teamId);
+    return (club ? club.abbr : '?') + ' ' + pk.player.name.split(' ').pop() + ' ' + pk.player.pos;
+  });
+}
+
+function setDraftDigest(you: string | null, autoPicks?: AutoPick[]): void {
+  UI.draftDigest = { you, then: formatAutoPicks(autoPicks) };
+}
+
+function cycleProspect(): void {
+  const n = boardOrder().length;
+  UI.draftIdx = n ? (UI.draftIdx + 1) % n : 0;
+}
+
 function doDraft(id: string): void {
   const L = store.league!;
   const r = store.dispatch({ t: 'draftPick', teamId: store.me.id, playerId: id });
@@ -262,11 +280,14 @@ function doDraft(id: string): void {
     return;
   }
   UI.draftIdx = 0;
-  toast('Selected', r.pick.player.name + ' · ' + r.pick.player.pos, 'good');
+  const taken = r.pick.player.name + ' · ' + r.pick.player.pos;
+  setDraftDigest(taken, r.autoPicks);
+  toast('Taken', taken, 'good');
   flushProgressToasts();
   if (backdrop.ok) backdrop.flare(0.8, 0);
   marquee.flash(r.pick.player.name, 2400);
   if (L.phase !== 'draft') {
+    UI.draftDigest = null;
     marquee.flash('SEASON OPENS', 3200);
     toast('Draft complete', 'Eighteen weeks. Go win something.', 'bulb');
     go('club');
@@ -282,9 +303,8 @@ function wireDraftDeck(): void {
   let fired = false;
   drag(top, {
     onMove(dx, dy, axis) {
-      if (axis === 'y' && dy < 0) {
-        anime.set(top, { translateY: dy, scale: 1 + Math.min(0.06, -dy / 900) });
-        anime.set(sR, { opacity: Math.min(1, -dy / 90) });
+      if (axis === 'y') {
+        anime.set(top, { translateY: dy * 0.4 });
         return;
       }
       anime.set(top, { translateX: dx, rotate: dx / 24 });
@@ -292,25 +312,28 @@ function wireDraftDeck(): void {
       anime.set(sR, { opacity: dx > 0 ? p : 0 });
       anime.set(sL, { opacity: dx < 0 ? p : 0 });
     },
-    onEnd(dx, dy, _vx, axis) {
+    onEnd(dx, _dy, _vx, axis) {
       if (fired) return;
-      const draftIt = dx > 100 || (axis === 'y' && dy < -90);
-      const pass = dx < -100;
-      if (draftIt) {
+      if (axis === 'y') {
+        anime({ targets: top, translateY: 0, duration: 320, easing: 'easeOutQuart' });
+        return;
+      }
+      const take = dx > 100;
+      const next = dx < -100;
+      if (take) {
         fired = true;
         haptic.big();
         anime({
-          targets: top, translateY: axis === 'y' ? -560 : 0, translateX: axis === 'y' ? 0 : 480,
-          rotate: axis === 'y' ? 0 : 20, opacity: 0, duration: 320, easing: 'easeInQuad',
+          targets: top, translateX: 480, rotate: 20, opacity: 0, duration: 320, easing: 'easeInQuad',
           complete: () => doDraft(top.dataset.id!)
         });
-      } else if (pass) {
+      } else if (next) {
         fired = true;
         haptic.tap();
         anime({
           targets: top, translateX: -480, rotate: -20, opacity: 0, duration: 300, easing: 'easeInQuad',
           complete: () => {
-            UI.draftIdx++;
+            cycleProspect();
             render();
           }
         });
@@ -580,12 +603,14 @@ export function handle(act: string, d: DOMStringMap): void {
       } else resolveScenarioUI(d.k as 'left' | 'right');
       break;
     }
-    case 'drpass': UI.draftIdx++; haptic.tap(); render(); break;
+    case 'drpass': cycleProspect(); haptic.tap(); render(); break;
     case 'drtake': haptic.big(); doDraft(d.id!); break;
     case 'advdraft': {
-      store.dispatch({ t: 'advanceDraft' });
+      const r = store.dispatch({ t: 'advanceDraft' });
+      setDraftDigest(null, r.autoPicks);
       haptic.tap();
       if (L.phase !== 'draft') {
+        UI.draftDigest = null;
         toast('Draft complete', 'Eighteen weeks ahead of you.', 'bulb');
         go('club');
       } else render();

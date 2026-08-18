@@ -1,4 +1,4 @@
-/** Six-step onboarding: name, colour wheel, background, vibe, paperwork. */
+/** Six-step onboarding: name, background, color wheel, vibe, paperwork. */
 import {
   CITIES, CLASSES, CLASS_LIST, GLYPHS, MASCOTS, ROSTER_MAX, VIBES,
   hueColor, makeInviteCode
@@ -29,8 +29,10 @@ export const OB = {
   step: 0,
   total: 6,
   code: '' as string,
+  signed: false,
+  clearSig: null as null | (() => void),
   draft: {
-    city: '', mascot: '', name: '', color: '#3BA7D6', glyph: 'anvil', cls: 'ANALYST', vibe: 'NIGHT', hue: 197
+    city: '', mascot: '', name: '', color: '#3BA7D6', glyph: 'compass', cls: 'ANALYST', vibe: 'NIGHT', hue: 197
   } as ObDraft,
 
   start(): void {
@@ -41,6 +43,7 @@ export const OB = {
     d.name = d.city + ' ' + d.mascot;
     d.hue = Math.floor(r() * 360);
     d.color = hueColor(d.hue);
+    d.glyph = CLASSES[d.cls].glyph;
     applyTeamColor(d.color);
     OB.render();
   },
@@ -82,22 +85,9 @@ export const OB = {
     }
 
     if (OB.step === 2) {
-      body = `<div class="eyebrow">Step two <b>the colours</b></div>
-        <h1>Pick a colour</h1>
-        <p class="dim" style="margin:10px 0 4px">Drag the ring. Everything in the app takes this colour.</p>
-        <div id="wheelwrap">
-          <canvas id="wheel" width="500" height="500" style="width:250px;height:250px"></canvas>
-          <div id="wheelcrest">${g(d.glyph)}</div>
-        </div>
-        <div class="eyebrow">The badge</div>
-        <div class="glyphgrid">${GLYPHS.map((k) => `<button class="gcell${k === d.glyph ? ' on' : ''}" data-ob="glyph" data-k="${k}">${g(k)}</button>`).join('')}</div>`;
-      foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn primary" data-ob="next">Next</button>';
-    }
-
-    if (OB.step === 3) {
-      body = `<div class="eyebrow">Step three <b>your background</b></div>
+      body = `<div class="eyebrow">Step two <b>your background</b></div>
         <h1>Where you<br>came from</h1>
-        <p class="dim" style="margin:10px 0 18px">This sets your staff, your starting six, and how the club plays before you touch a thing.</p>
+        <p class="dim" style="margin:10px 0 18px">This sets your staff, your starting six, and how the club plays before you touch a thing. Each background has its own badge.</p>
         ${CLASS_LIST.map((k) => {
           const c = CLASSES[k];
           return `<button class="classcard${k === d.cls ? ' on' : ''}" data-ob="cls" data-k="${k}" style="width:100%;text-align:left">
@@ -109,9 +99,22 @@ export const OB = {
               </div>
             </div>
             <p class="cc-bl">${esc(c.blurb)}</p>
-            ${k === d.cls ? c.perks.map((p) => `<div class="perk"><i></i><span>${esc(p)}</span></div>`).join('') : ''}
+            <div class="perks">${c.perks.map((p) => `<div class="perk"><i></i><span>${esc(p)}</span></div>`).join('')}</div>
           </button>`;
         }).join('')}`;
+      foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn primary" data-ob="next">Next</button>';
+    }
+
+    if (OB.step === 3) {
+      body = `<div class="eyebrow">Step three <b>the colors</b></div>
+        <h1>Pick a color</h1>
+        <p class="dim" style="margin:10px 0 4px">Drag the ring. The badge starts as the one that goes with ${esc(CLASSES[d.cls].name.toLowerCase())} — change it if you want.</p>
+        <div id="wheelwrap">
+          <canvas id="wheel" width="500" height="500" style="width:250px;height:250px"></canvas>
+          <div id="wheelcrest">${g(d.glyph)}</div>
+        </div>
+        <div class="eyebrow">The badge</div>
+        <div class="glyphgrid">${GLYPHS.map((k) => `<button class="gcell${k === d.glyph ? ' on' : ''}" data-ob="glyph" data-k="${k}">${g(k)}</button>`).join('')}</div>`;
       foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn primary" data-ob="next">Next</button>';
     }
 
@@ -142,13 +145,21 @@ export const OB = {
           <div class="kv"><span class="k">Roster limit</span><b>${ROSTER_MAX}</b></div>
           <div class="kv"><span class="k">Season</span><b>18 weeks · 54 games</b></div>
           <div class="hairline"></div>
-          <div style="font-size:13.5px;color:#4b4838;line-height:1.45">
+          <div style="font-size:13.5px;color:#4b4838;line-height:1.45;margin-bottom:14px">
             The draft opens the moment you sign. Twelve rounds, snake order, seven rivals picking against you.
+          </div>
+          <div class="sigwrap">
+            <div class="mq-lab" style="color:#6b6248">General manager</div>
+            <div class="sigpad">
+              <div class="sigbase" aria-hidden="true"><b>X</b><i></i></div>
+              <canvas id="sig"></canvas>
+            </div>
+            <button type="button" class="sigclear" data-ob="sigclear">Clear</button>
           </div>
         </div>
         <div id="codebar"><div style="flex:1"><div class="mq-lab">League code</div><div class="c" id="obcode">------</div></div>
           <div class="faint" style="font-size:12px;max-width:11em;text-align:right">Friends join this league later with this code</div></div>`;
-      foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn bulb" data-ob="create">Open the draft</button>';
+      foot = '<button class="btn ghost" data-ob="back">Back</button><button class="btn bulb" data-ob="create" disabled>Open the draft</button>';
     }
 
     $('#onboard').innerHTML = `<div id="obtop">${top}</div><div id="obbody">${body}</div><div id="obfoot">${foot}</div>`;
@@ -169,7 +180,7 @@ export const OB = {
       $('#obcity').addEventListener('input', up);
       $('#obmascot').addEventListener('input', up);
     }
-    if (OB.step === 2) OB.wheel();
+    if (OB.step === 3) OB.wheel();
     if (OB.step === 4) {
       document.querySelectorAll<HTMLCanvasElement>('.vsw').forEach((cv) => {
         vibeSwatch(cv, VIBES[cv.dataset.v!], hexToRgb(d.color));
@@ -178,6 +189,7 @@ export const OB = {
     if (OB.step === 5) {
       OB.code = OB.code || makeInviteCode();
       $('#obcode').textContent = OB.code;
+      requestAnimationFrame(() => OB.sig());
     }
   },
 
@@ -185,13 +197,14 @@ export const OB = {
     const cv = $('#wheel') as HTMLCanvasElement;
     const c = cv.getContext('2d')!;
     const R = 250, cx = 250, cy = 250, inner = 150;
+    /** Canvas 0° is 3 o'clock; put hue 0 (red) at 12 o'clock, clockwise. */
+    const hueAng = (h: number): number => ((h - 90) * Math.PI) / 180;
     function paint(): void {
       c.clearRect(0, 0, 500, 500);
       for (let a = 0; a < 360; a++) {
-        const s = ((a - 0.6) * Math.PI) / 180, e = ((a + 1.2) * Math.PI) / 180;
         c.beginPath();
         c.moveTo(cx, cy);
-        c.arc(cx, cy, R - 6, s, e);
+        c.arc(cx, cy, R - 6, hueAng(a - 0.6), hueAng(a + 1.2));
         c.closePath();
         c.fillStyle = hueColor(a);
         c.fill();
@@ -201,14 +214,14 @@ export const OB = {
       c.arc(cx, cy, inner, 0, 6.2832);
       c.fill();
       c.globalCompositeOperation = 'source-over';
-      const ang = ((OB.draft.hue - 90) * Math.PI) / 180;
+      const ang = hueAng(OB.draft.hue);
       const kx = cx + Math.cos(ang) * (R - 34), ky = cy + Math.sin(ang) * (R - 34);
       c.beginPath();
       c.arc(kx, ky, 24, 0, 6.2832);
-      c.fillStyle = '#E9EEE7';
+      c.fillStyle = OB.draft.color;
       c.fill();
       c.lineWidth = 7;
-      c.strokeStyle = OB.draft.color;
+      c.strokeStyle = '#E9EEE7';
       c.stroke();
     }
     paint();
@@ -250,6 +263,83 @@ export const OB = {
     });
   },
 
+  sig(): void {
+    const cv = $('#sig') as HTMLCanvasElement | null;
+    const pad = cv && cv.parentElement;
+    if (!cv || !pad) return;
+    const ctx = cv.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = Math.max(1, pad.clientWidth);
+    const h = Math.max(1, pad.clientHeight);
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+
+    const inkColor = '#1A1814';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = inkColor;
+    ctx.lineWidth = 2.4;
+
+    let drawing = false;
+    let lx = 0;
+    let ly = 0;
+    let ink = 0;
+    OB.signed = false;
+    const btn = document.querySelector<HTMLButtonElement>('[data-ob="create"]');
+    if (btn) btn.disabled = true;
+
+    const pt = (e: PointerEvent): { x: number; y: number } => {
+      const r = cv.getBoundingClientRect();
+      return { x: e.clientX - r.left, y: e.clientY - r.top };
+    };
+
+    cv.style.touchAction = 'none';
+    cv.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      cv.setPointerCapture(e.pointerId);
+      drawing = true;
+      const p = pt(e);
+      lx = p.x;
+      ly = p.y;
+      ctx.lineWidth = 1.7 + (e.pressure || 0.5) * 1.6;
+      ctx.beginPath();
+      ctx.fillStyle = inkColor;
+      ctx.arc(lx, ly, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!drawing) return;
+      e.preventDefault();
+      const p = pt(e);
+      ctx.lineWidth = 1.7 + (e.pressure || 0.5) * 1.6;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+      ink += Math.hypot(p.x - lx, p.y - ly);
+      lx = p.x;
+      ly = p.y;
+      if (ink > 28 && !OB.signed) {
+        OB.signed = true;
+        if (btn) btn.disabled = false;
+      }
+    });
+    const stop = (): void => { drawing = false; };
+    cv.addEventListener('pointerup', stop);
+    cv.addEventListener('pointercancel', stop);
+
+    OB.clearSig = () => {
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      ink = 0;
+      OB.signed = false;
+      if (btn) btn.disabled = true;
+    };
+  },
+
   act(what: string, data: DOMStringMap): void {
     const d = OB.draft;
     const r = Math.random;
@@ -281,8 +371,14 @@ export const OB = {
       anime({ targets: '#wheelcrest', scale: [0.82, 1], duration: 460, easing: 'easeOutElastic' });
     } else if (what === 'cls') {
       d.cls = data.k!;
+      d.glyph = CLASSES[d.cls].glyph;
       haptic.select();
-      OB.render();
+      document.querySelectorAll<HTMLElement>('.classcard').forEach((el) => {
+        el.classList.toggle('on', el.dataset.k === d.cls);
+      });
+    } else if (what === 'sigclear') {
+      haptic.tap();
+      if (OB.clearSig) OB.clearSig();
     } else if (what === 'vibe') {
       d.vibe = data.k!;
       haptic.tap();
@@ -294,6 +390,10 @@ export const OB = {
   },
 
   create(): void {
+    if (!OB.signed) {
+      haptic.warn();
+      return;
+    }
     const d = OB.draft;
     haptic.ok();
     const code = OB.code || makeInviteCode();

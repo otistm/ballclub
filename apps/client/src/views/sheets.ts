@@ -1,7 +1,7 @@
 /** Bottom-sheet content: player card, full draft board, series recap, playoffs, offseason. */
 import {
   ROSTER_MAX, TRAITS, TROPHIES,
-  avg, era, fmtIP, isPitcher, obp, shownOvr, slg, value,
+  avg, draftCurrent, era, fmtIP, isPitcher, obp, shownOvr, slg, value,
   type Bracket, type GameSummary, type MyPbp, type OffseasonReport, type PbpEvent,
   type SeasonLogHit, type SeasonLogPit, type SeriesResult
 } from '@ballclub/engine';
@@ -106,16 +106,21 @@ export function playerSheet(id: string): void {
 
 export function fullBoard(): void {
   const L = store.league!;
+  const me = store.me;
+  const cur = draftCurrent(L);
+  const onClock = L.phase === 'draft' && !!cur && cur.teamId === me.id;
   const board = boardOrder().slice(0, 40);
-  let s = `<div class="eyebrow">Your board <b>${L.draftPool.length} available</b></div>
-    <p class="faint" style="font-size:13px;margin-bottom:10px">Ordered by how your staff grades them. Tap to draft.</p>
+  let s = `<div class="eyebrow">Remaining names <b>${L.draftPool.length} left</b></div>
+    <p class="faint" style="font-size:13px;margin-bottom:10px">${onClock
+      ? 'Sorted by how your staff grades them. Tap a name to take him with this pick.'
+      : 'Sorted by how your staff grades them. You pick when the clock comes back to you.'}</p>
     <div class="panel" style="padding-top:4px">`;
   board.forEach((p, i) => {
     const so = shownOvr(p, meFog());
-    s += `<div class="prow" data-act="draftpick" data-id="${p.id}">
+    s += `<div class="prow" data-act="${onClock ? 'draftpick' : 'player'}" data-id="${p.id}">
       <div class="ppos${isPitcher(p) ? ' p' : ''}">${p.pos}</div>
       <div class="pinfo"><div class="pname">${esc(p.name)}</div>
-        <div class="pmeta"><span>#${i + 1}</span><span>${p.age}y</span><span>${M(p.salary)}</span></div></div>
+        <div class="pmeta"><span>staff ${i + 1}</span><span>${p.age}y</span><span>${M(p.salary)}</span></div></div>
       <div class="povr ${so.exact ? '' : 'fog'}">${so.exact ? so.v : so.lo + '-' + so.hi}<small>ovr</small></div></div>`;
   });
   s += `</div>`;
@@ -270,7 +275,7 @@ export function offseasonSheet(rep: OffseasonReport | null): void {
   }
   s += `<div class="panel"><div class="kv"><span class="k">Roster</span><b>${me.roster.length} of ${ROSTER_MAX}</b></div>
     <div class="kv"><span class="k">Cash</span><b>${M(me.cash)}</b></div>
-    <div class="kv"><span class="k">Draft</span><b>${L.draftRounds} rounds, worst picks first</b></div></div>
+    <div class="kv"><span class="k">Draft</span><b>${L.draftRounds} rounds, snake order</b></div></div>
     <button class="btn bulb" data-act="opendraft">Open the draft</button>`;
   openSheet(s);
 }
