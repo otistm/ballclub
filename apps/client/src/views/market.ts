@@ -18,7 +18,7 @@ export function boardOrder(): Player[] {
 export function viewMarket(): string {
   const L = store.league!;
   if (L.phase === 'draft') return viewDraft();
-  let s = `<div class="chiprow">
+  let s = marketWire() + `<div class="chiprow">
     ${([['trade', 'Trades'], ['fa', 'Free agents'], ['scout', 'Scouting']] as const).map(([k, n]) =>
       `<button class="chip${UI.market === k ? ' on' : ''}" data-act="market" data-k="${k}">${n}</button>`).join('')}
   </div>`;
@@ -26,6 +26,46 @@ export function viewMarket(): string {
   else if (UI.market === 'fa') s += viewFA();
   else s += viewScout();
   return s;
+}
+
+function marketWire(): string {
+  const L = store.league!;
+  const lines: string[] = [];
+  const formatLog = (e: { txt?: string; t?: string }): string => {
+    const raw = e.txt || '';
+    if (!e.t) return raw;
+    const team = L.teams.find((x) => x.id === e.t);
+    if (!team) return raw;
+    if (raw.indexOf(team.abbr) === 0 || raw.indexOf(team.abbr + ' ') >= 0 || raw.indexOf(team.abbr + ' ·') >= 0) {
+      return raw;
+    }
+    return team.abbr + ' · ' + raw;
+  };
+  const last = L.results[L.results.length - 1];
+  if (last?.series?.length) {
+    const sweep = last.series.find((sr) => sr.hw === 0 || sr.aw === 0);
+    if (sweep) {
+      const winner = sweep.hw > sweep.aw
+        ? L.teams.find((t) => t.id === sweep.homeId)
+        : L.teams.find((t) => t.id === sweep.awayId);
+      const loser = sweep.hw > sweep.aw
+        ? L.teams.find((t) => t.id === sweep.awayId)
+        : L.teams.find((t) => t.id === sweep.homeId);
+      if (winner && loser) lines.push(winner.abbr + ' swept ' + loser.abbr + ' in week ' + last.week);
+    }
+  }
+  L.log.filter((x) => x.trade).slice(-2).reverse().forEach((e) => {
+    if (e.txt) lines.push(formatLog(e));
+  });
+  if (!lines.length) {
+    const feed = L.log.filter((x) => !x.draft).slice(-2).reverse();
+    feed.forEach((e) => { if (e.txt) lines.push(formatLog(e)); });
+  }
+  if (!lines.length) return '';
+  return `<div class="panel market-wire">
+    <div class="eyebrow">The wire <b>around the league</b></div>
+    ${lines.slice(0, 2).map((t) => `<p class="wire-line">${esc(t)}</p>`).join('')}
+  </div>`;
 }
 
 /* ---------- draft ---------- */
@@ -206,8 +246,15 @@ export function viewTrade(): string {
         <div class="f ${bal < 0 ? 'bad' : ''}" style="${bal >= 0 ? 'left:50%;width:' + bal * 50 + '%' : 'left:' + (50 + bal * 50) + '%;width:' + -bal * 50 + '%'}"></div></div>
       <div style="flex:0 0 auto;text-align:right"><div class="mq-lab">You give</div><b class="num">${ev.myVal}</b></div>
     </div>
-    <p class="${them.isHuman ? 'dim' : (ev.accept ? 'pos' : 'dim')}" style="text-align:center;margin-bottom:10px;font-size:14px">${
+    <p class="${them.isHuman ? 'dim' : (ev.accept ? 'pos' : 'dim')}" style="text-align:center;margin-bottom:6px;font-size:14px">${
       them.isHuman ? 'They will see this on their fax machine.' : esc(ev.verdict)
+    }</p>
+    <p class="faint" style="text-align:center;font-size:12px;margin-bottom:10px;line-height:1.35">${
+      them.isHuman
+        ? 'Wire note: human desks answer when they open Market.'
+        : esc(ev.accept
+          ? 'Wire note: their board likes the value enough to move.'
+          : 'Wire note: ' + (ev.verdict.indexOf('Close') >= 0 ? 'one more piece might tip them.' : 'they want a different shape of deal.'))
     }</p>
     <div class="btn-row">
       <button class="btn ghost" data-act="tclear">Clear</button>
@@ -244,12 +291,14 @@ export function viewScout(): string {
   const me = store.me;
   const pool = L.draftPool.length ? L.draftPool : L.freeAgents;
   const unscouted = pool.filter((p) => p.scouted < 1).sort((a, b) => b.scouted - a.scouted).slice(0, 24);
+  const closing = pool.filter((p) => p.scouted >= 0.55 && p.scouted < 1).length;
   const positions: Position[] = ['SP', 'RP', 'C', 'SS', 'CF', '1B', '2B', '3B', 'LF', 'RF', 'DH'];
   let s = `<div class="panel">
     <div class="eyebrow">Scouting department</div>
     <div class="kv"><span class="k">Head scout</span><b>${me.staff.scout}</b></div>
     <div class="kv"><span class="k">The eye</span><b>rank ${me.progress?.skills.scout || 0}</b></div>
     <div class="kv"><span class="k">Reports per week</span><b>${((me.staff.scout / 100) * (CLASSES[me.cls].mods.scoutSpeed || 1) * scoutTickMul(me) * 5).toFixed(1)}%</b></div>
+    <div class="kv"><span class="k">Files closing this week</span><b>${closing}</b></div>
     <p class="faint" style="font-size:13px;margin-top:6px">Focus your scouts on one position and they work that group first. One action fully resolves a single player. Rank The eye from the League tab to lift the fog and close files faster.</p>
     <div class="chiprow" style="margin-top:10px;margin-bottom:0">
       <button class="chip${!me.scoutFocus ? ' on' : ''}" data-act="focus" data-k="">Everyone</button>

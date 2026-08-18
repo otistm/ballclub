@@ -904,6 +904,65 @@ h3{font-size:16px}
   padding:8px 0 2px;text-align:center
 }
 
+/* ---------- market ceremony + progress FX ---------- */
+#market-fx,#progress-fx{
+  position:absolute;inset:0;z-index:45;
+  display:none;place-items:center;padding:24px 18px;
+  background:rgba(3,6,5,.78);backdrop-filter:blur(4px)
+}
+#market-fx.on,#progress-fx.on{display:grid}
+.mfx-card{
+  width:min(340px,100%);padding:22px 20px 26px;border-radius:6px;text-align:center;
+  background:linear-gradient(165deg,#E2D5B2 0%,#C9B98F 100%);
+  color:#1B1F1A;border:1px solid #a89a76;
+  box-shadow:0 18px 40px rgba(0,0,0,.45);position:relative
+}
+.mfx-tag{
+  font-family:var(--mono);font-size:9px;letter-spacing:.22em;color:#7a6f52;margin-bottom:10px
+}
+.mfx-name{font-family:var(--dsp);font-size:28px;line-height:1;margin-bottom:14px}
+.mfx-fog{
+  font-family:var(--dsp);font-size:42px;color:#8E8465;line-height:.9
+}
+.mfx-true{
+  font-family:var(--dsp);font-size:64px;color:var(--team,#2E7A4C);line-height:.86;margin-top:-6px
+}
+.mfx-stamp{
+  margin:16px auto 0;display:inline-block;
+  font-family:var(--dsp);font-size:28px;letter-spacing:.04em;
+  padding:4px 14px;border:3px solid #2E7A4C;color:#2E7A4C;
+  transform:rotate(-8deg);opacity:0
+}
+.mfx-stamp.ok{border-color:#2E7A4C;color:#2E7A4C}
+.mfx-stamp.bad{border-color:var(--rust);color:var(--rust)}
+.mfx-note{margin-top:14px;font-size:13px;color:#3A3E33;line-height:1.35}
+.mfx-faxhead{
+  font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:#7a6f52;margin-bottom:12px
+}
+.mfx-line{font-size:15px;line-height:1.4;margin-bottom:8px}
+.market-wire{margin-bottom:12px}
+.wire-line{font-size:13px;line-height:1.4;color:var(--chalk-dim);margin:4px 0}
+.pfx-wash{
+  position:absolute;inset:0;
+  background:radial-gradient(ellipse at 50% 40%, var(--team-soft), transparent 62%),
+    linear-gradient(180deg, rgba(10,16,14,.2), rgba(10,16,14,.92))
+}
+.pfx-inner{position:relative;z-index:1;text-align:center;max-width:320px}
+.pfx-lab{
+  font-family:var(--mono);font-size:11px;letter-spacing:.28em;color:var(--chalk-faint);margin-bottom:10px
+}
+.pfx-level{
+  font-family:var(--dsp);font-size:72px;line-height:.86;color:var(--chalk);
+  text-shadow:0 8px 28px rgba(0,0,0,.45)
+}
+.pfx-point{
+  font-family:var(--dsp);font-size:84px;line-height:.86;color:var(--bulb);
+  text-shadow:0 0 24px rgba(255,180,60,.35)
+}
+.pfx-sub{margin-top:12px;font-size:16px;color:var(--chalk-dim)}
+.pfx-cta{margin-top:22px;width:100%}
+.pfx-skip{margin-top:10px}
+
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.01ms !important;transition-duration:.01ms !important}
 }

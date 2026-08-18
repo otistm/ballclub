@@ -89,6 +89,10 @@ export function startOffseason(league: League): OffseasonReport {
     });
     t.attBonus = 0;
     t.devBonus = 0;
+    t.weekBoost = null;
+    t.deskArc = null;
+    t.rainRisk = 0;
+    t.pendingTrade = null;
     t.fanTrust = clamp(t.fanTrust * 0.92 + 4, 5, 100);
     t.ap = t.apMax;
   });

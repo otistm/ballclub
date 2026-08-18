@@ -104,6 +104,16 @@ export function scoreIdleEffect(cls: string, eff: ScenarioEffect, cash: number):
   s += (eff.weekPatience || 0) * (w.dev || 0.5) * 2;
   s += (eff.weekAggression || 0) * (w.att || 0.5) * 2;
   s += (eff.weekCond || 0) * w.cond * 0.1;
+  s += (eff.playerMorale || 0) * w.morale * 0.08;
+  s += (eff.playerCond || 0) * w.cond * 0.08;
+  s -= (eff.playerInjWeeks || 0) * w.injRisk * 0.9;
+  if (eff.rivalEff) {
+    s -= (eff.rivalEff.trust || 0) * w.trust * 0.06;
+    s -= (eff.rivalEff.cash || 0) / 200000 * w.cash * 0.3;
+    s += (eff.rivalEff.rainRisk || 0) * 0.4;
+    s += (eff.rivalEff.weekCond || 0) * -0.05;
+  }
+  if (eff.arc) s += 0.15;
   return s;
 }
 

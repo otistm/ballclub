@@ -197,6 +197,44 @@ export interface ScenarioEffect {
   weekPatience?: number;
   weekAggression?: number;
   weekCond?: number;
+  /** target one player for morale / cond / injury */
+  playerPick?: ScenarioPlayerPick;
+  playerMorale?: number;
+  playerCond?: number;
+  playerInjWeeks?: number;
+  /** hit another club */
+  rivalPick?: ScenarioRivalPick;
+  rivalEff?: ScenarioRivalEff;
+  /** start or replace a multi-series desk chain */
+  arc?: ScenarioArc;
+}
+
+/** Who the desk card names when the effect is personal */
+export type ScenarioPlayerPick = 'ace' | 'vet' | 'worstMorale' | 'random' | Position;
+
+export type ScenarioRivalPick = 'nextOpp' | 'leader' | 'randomAi';
+
+export interface ScenarioRivalEff {
+  trust?: number;
+  cash?: number;
+  rainRisk?: number;
+  weekCond?: number;
+  att?: number;
+}
+
+/** Follow-up desk cards due after delayWeeks */
+export interface ScenarioArc {
+  id: string;
+  steps: string[];
+  delayWeeks?: number;
+}
+
+/** Active multi-series desk matter on a club */
+export interface DeskArc {
+  id: string;
+  step: number;
+  nextWeek: number;
+  cardIds: string[];
 }
 
 /** Deferred dugout instructions from a desk card — live for one series */
@@ -353,6 +391,8 @@ export interface Team {
   rainRisk?: number;
   /** desk card overlays for the upcoming series only */
   weekBoost?: WeekBoost | null;
+  /** multi-series desk chain waiting to fire */
+  deskArc?: DeskArc | null;
   /** midnight call from the desk — accept via trade action */
   pendingTrade?: { rivalId: string; give: string[]; get: string[] } | null;
   /** offer from another human GM waiting on this desk */

@@ -97,16 +97,26 @@ export function viewClub(): string {
         </div>
       </div>`;
     }
-  } else if (L.phase === 'regular' && me.weekBoost) {
-    const bits: string[] = [];
-    if (me.weekBoost.patience) bits.push((me.weekBoost.patience > 0 ? '+' : '') + 'patience');
-    if (me.weekBoost.aggression) bits.push((me.weekBoost.aggression > 0 ? '+' : '') + 'aggression');
-    if (me.weekBoost.cond) bits.push((me.weekBoost.cond > 0 ? '+' : '') + 'legs');
-    if (bits.length) {
-      s += `<div class="panel" style="margin-bottom:12px">
-        <div class="eyebrow">This series <b>dugout note</b></div>
-        <p class="dim" style="margin-top:4px">${esc(bits.join(' · '))} from the desk. Clears after the series.</p>
+  } else if (L.phase === 'regular' && (me.weekBoost || me.deskArc)) {
+    if (me.deskArc && me.deskArc.step < me.deskArc.cardIds.length) {
+      const weeksLeft = Math.max(0, me.deskArc.nextWeek - L.week);
+      const when = weeksLeft <= 0 ? 'due on the next desk' : weeksLeft === 1 ? 'back in a week' : 'back in ' + weeksLeft + ' weeks';
+      s += `<div class="panel" style="margin-bottom:12px;border-color:rgba(255,180,60,.28)">
+        <div class="eyebrow">Open matter <b>desk</b></div>
+        <p class="dim" style="margin-top:4px">A decision is still on the wire — ${esc(when)}.</p>
       </div>`;
+    }
+    if (me.weekBoost) {
+      const bits: string[] = [];
+      if (me.weekBoost.patience) bits.push((me.weekBoost.patience > 0 ? '+' : '') + 'patience');
+      if (me.weekBoost.aggression) bits.push((me.weekBoost.aggression > 0 ? '+' : '') + 'aggression');
+      if (me.weekBoost.cond) bits.push((me.weekBoost.cond > 0 ? '+' : '') + 'legs');
+      if (bits.length) {
+        s += `<div class="panel" style="margin-bottom:12px">
+          <div class="eyebrow">This series <b>dugout note</b></div>
+          <p class="dim" style="margin-top:4px">${esc(bits.join(' · '))} from the desk. Clears after the series.</p>
+        </div>`;
+      }
     }
   }
 

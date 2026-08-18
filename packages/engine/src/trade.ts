@@ -76,10 +76,12 @@ export function execTrade(
     myTeam.roster.push(p);
   });
   if (ev.delta >= Math.max(12, ev.myVal * 0.4)) award(myTeam, 'FLEECED', league);
+  const give = myOut.map((p) => p.name).join(', ') || 'nobody';
+  const get = theirOut.map((p) => p.name).join(', ') || 'nobody';
   league.log.push({
     w: league.week,
     trade: true,
-    txt: myTeam.abbr + ' and ' + theirTeam.abbr + ' swap ' + (myOut.length + theirOut.length) + ' players'
+    txt: myTeam.abbr + ' send ' + give + ' · ' + theirTeam.abbr + ' send ' + get
   });
   noteOffice(myTeam, 'trades', 22, 'Trade');
   if (theirTeam.isHuman) noteOffice(theirTeam, 'trades', 22, 'Trade');

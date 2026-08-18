@@ -97,7 +97,7 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
       const risk = (0.012 * (has(p, 'GLASS') ? 2.2 : 1) * (1 + (100 - p.cond) / 90)) / rec;
       if (p.injured <= 0 && leagueRoll(league, p.id + league.week) < risk) {
         p.injured = RI(mulberry32(hashStr(p.id + league.week)), 1, 4);
-        league.log.push({ w: league.week + 1, t: t.id, txt: p.name + ' is out ' + p.injured + ' week' + (p.injured > 1 ? 's' : '') });
+        league.log.push({ w: league.week + 1, t: t.id, txt: t.abbr + ' · ' + p.name + ' is out ' + p.injured + ' week' + (p.injured > 1 ? 's' : '') });
       }
       // morale drift
       const wp = t.w + t.l ? t.w / (t.w + t.l) : 0.5;

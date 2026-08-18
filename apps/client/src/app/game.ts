@@ -10,6 +10,8 @@ import {
 import anime from '../ui/motion.js';
 import { $, closeSheet, esc, toast } from '../ui/dom.js';
 import { haptic, drag, longPress, reduceMotion, swallowClick, roll } from '../ui/ux.js';
+import { showScoutStamp, showTradeFax } from '../ui/marketFx.js';
+import { playLevelSequence, enqueueAchievementToast } from '../ui/progressFx.js';
 import { ic } from '../ui/icons.js';
 import { M, hexToRgb } from '../ui/format.js';
 import { vibeSwatch } from '../ui/gl.js';
@@ -65,15 +67,16 @@ function flushProgressToasts(): void {
   const unlocks = consumeUnlocks(store.me);
   if (!unlocks.length) return;
   store.save();
-  unlocks.forEach((u, i) => {
-    setTimeout(() => {
-      if (u.indexOf('LEVEL ') === 0) {
-        toast('Level up', 'GM ' + u.slice(6) + ' · a point waiting in the office', 'good');
-        return;
-      }
+  unlocks.forEach((u) => {
+    if (u.indexOf('LEVEL ') === 0) {
+      const level = +(u.slice(6) || 0);
+      playLevelSequence(level, () => go('league'));
+      return;
+    }
+    enqueueAchievementToast(() => {
       const spec = achievementById(u);
       toast('Unlocked', spec ? spec.name + ' · +' + spec.xp : u, 'good');
-    }, 380 * i);
+    });
   });
 }
 
@@ -112,11 +115,18 @@ export function go(v: string, dir?: 'left' | 'right'): void {
 export function render(): void {
   const L = store.league!;
   rankTeams(L);
+  const prev = document.querySelector('.view.active') as HTMLElement | null;
+  const sameView = !!prev && prev.id === 'v-' + store.view;
+  const keepY = sameView ? prev!.scrollTop : 0;
   const views: Record<ViewKey, () => string> = {
     club: viewClub, roster: viewRoster, market: viewMarket, park: viewPark, league: viewLeague
   };
   const html = (views[store.view as ViewKey] || viewClub)();
   $('#views').innerHTML = `<section class="view active" id="v-${store.view}">${html}</section>`;
+  if (sameView) {
+    const after = document.querySelector('.view.active') as HTMLElement | null;
+    if (after) after.scrollTop = keepY;
+  }
   refreshChrome();
   updateBadges();
   if (store.view === 'club') wirePull();
@@ -134,7 +144,19 @@ function updateBadges(): void {
   const L = store.league!;
   const me = store.me;
   const cur = draftCurrent(L);
-  badge('market', L.phase === 'draft' && cur && cur.teamId === me.id ? 1 : 0);
+  let marketBadge = 0;
+  if (L.phase === 'draft' && cur && cur.teamId === me.id) marketBadge = 1;
+  else if (L.phase !== 'draft') {
+    if (me.inboxTrade || me.pendingTrade) marketBadge = 1;
+    else {
+      const pool = L.draftPool.length ? L.draftPool : L.freeAgents;
+      const focus = me.scoutFocus
+        ? pool.filter((p) => p.pos === me.scoutFocus && p.scouted < 1)
+        : pool.filter((p) => p.scouted < 1);
+      if (focus.length && me.ap > 0) marketBadge = Math.min(9, focus.length);
+    }
+  }
+  badge('market', marketBadge);
   badge('club', me.deskPending && L.phase === 'regular' ? 1 : 0);
   badge('park', me.sponsorOffers.length);
   badge('league', me.progress?.unspent || 0);
@@ -518,8 +540,6 @@ function wireRosterSort(): void {
         swallowClick();
         const moved = toIdx !== fromIdx;
         const ids = wraps.map((w) => w.dataset.id!);
-        const sc = document.querySelector('.view.active') as HTMLElement | null;
-        const keepY = sc ? sc.scrollTop : 0;
         if (moved) {
           const item = ids.splice(fromIdx, 1)[0];
           ids.splice(toIdx, 0, item);
@@ -534,11 +554,7 @@ function wireRosterSort(): void {
         fromIdx = -1;
         toIdx = -1;
         clearTransforms();
-        if (moved) {
-          render();
-          const after = document.querySelector('.view.active') as HTMLElement | null;
-          if (after) after.scrollTop = keepY;
-        }
+        if (moved) render();
       },
       onCancel: () => {
         lifting = false;
@@ -673,25 +689,55 @@ function proposeTrade(): void {
     .filter((p) => UI.trade.theirs.indexOf(p.id) >= 0)
     .map((p) => p.name)
     .join(', ');
+  const outgoing = me.roster
+    .filter((p) => UI.trade.mine.indexOf(p.id) >= 0)
+    .map((p) => p.name)
+    .join(', ');
   const r = store.dispatch({
     t: 'trade', teamId: me.id, rivalId: them.id, give: UI.trade.mine.slice(), get: UI.trade.theirs.slice()
   });
-  if (r.ok) {
-    haptic.big();
-    if (them.isHuman) {
-      toast('Faxed', 'Waiting on ' + them.abbr + ' to answer', 'bulb');
-    } else {
-      toast('Trade agreed', them.abbr + ' send ' + (incoming || 'nobody'), 'good');
-      flushProgressToasts();
-      if (backdrop.ok) backdrop.flare(0.7, 0);
+  const finish = (): void => {
+    if (r.ok) {
+      UI.trade.mine = [];
+      UI.trade.theirs = [];
+      if (!them.isHuman) flushProgressToasts();
     }
-    UI.trade.mine = [];
-    UI.trade.theirs = [];
+    render();
+  };
+  if (r.ok) {
+    if (them.isHuman) {
+      showTradeFax({
+        ok: true,
+        them: them.abbr,
+        line: 'Waiting on their desk. You sent ' + (outgoing || 'nobody') + '.',
+        onDone: () => {
+          toast('Faxed', 'Waiting on ' + them.abbr + ' to answer', 'bulb');
+          finish();
+        }
+      });
+    } else {
+      showTradeFax({
+        ok: true,
+        them: them.abbr,
+        line: (incoming || 'Nobody') + ' coming back. You sent ' + (outgoing || 'nobody') + '.',
+        onDone: () => {
+          toast('Trade agreed', them.abbr + ' send ' + (incoming || 'nobody'), 'good');
+          if (backdrop.ok) backdrop.flare(0.7, 0);
+          finish();
+        }
+      });
+    }
   } else {
-    haptic.warn();
-    toast('Turned down', r.err || 'No deal', 'bad');
+    showTradeFax({
+      ok: false,
+      them: them.abbr,
+      line: r.err || 'They will not take that package.',
+      onDone: () => {
+        toast('Turned down', r.err || 'No deal', 'bad');
+        finish();
+      }
+    });
   }
-  render();
 }
 
 function doSignFA(id: string): void {
@@ -738,16 +784,23 @@ function doScout(id: string): void {
     toast('Out of actions', r.err || 'You get them back when the next series is played.', 'bad');
     return;
   }
-  haptic.ok();
   const delta = p.ovr - before.v;
-  toast(
-    'Report in',
-    p.name + ' grades out at ' + p.ovr +
-      (Math.abs(delta) >= 5 ? (delta > 0 ? ' — better than they thought' : ' — worse than they thought') : ''),
-    Math.abs(delta) >= 5 ? 'bulb' : 'good'
-  );
-  flushProgressToasts();
-  render();
+  const note =
+    Math.abs(delta) >= 5
+      ? (delta > 0 ? 'Better than they thought' : 'Worse than they thought')
+      : 'About what the room expected';
+  const estimate = before.exact ? String(before.v) : before.lo + '–' + before.hi;
+  showScoutStamp({
+    name: p.name,
+    estimate,
+    ovr: p.ovr,
+    note,
+    onDone: () => {
+      toast('Report in', p.name + ' grades out at ' + p.ovr, Math.abs(delta) >= 5 ? 'bulb' : 'good');
+      flushProgressToasts();
+      render();
+    }
+  });
 }
 
 function doUpgrade(key: string): void {
@@ -898,17 +951,23 @@ export function handle(act: string, d: DOMStringMap): void {
       render();
       break;
     case 'inbox-yes': {
+      const from = me.inboxTrade ? L.teams.find((t) => t.id === me.inboxTrade!.fromId) : null;
       const r = store.dispatch({ t: 'respondTrade', teamId: me.id, accept: true });
-      if (r.ok) {
-        haptic.ok();
-        toast('Deal done', 'You took the fax.', 'good');
-        flushProgressToasts();
-        if (backdrop.ok) backdrop.flare(0.7, 0);
-      } else {
-        haptic.warn();
-        toast('No', r.err || 'Deal fell apart', 'bad');
-      }
-      render();
+      showTradeFax({
+        ok: !!r.ok,
+        them: from?.abbr || 'RIVAL',
+        line: r.ok ? 'You took the fax. Roster moves are filed.' : (r.err || 'Deal fell apart'),
+        onDone: () => {
+          if (r.ok) {
+            toast('Deal done', 'You took the fax.', 'good');
+            flushProgressToasts();
+            if (backdrop.ok) backdrop.flare(0.7, 0);
+          } else {
+            toast('No', r.err || 'Deal fell apart', 'bad');
+          }
+          render();
+        }
+      });
       break;
     }
     case 'inbox-no':
