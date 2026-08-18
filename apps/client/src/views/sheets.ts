@@ -307,3 +307,47 @@ export function staffSheet(role: StaffRole): void {
     </button>`;
   openSheet(s);
 }
+
+export type DugoutKey = 'pat' | 'agg' | 'hook';
+
+const DUGOUT_INFO: Record<DugoutKey, { name: string; does: string; why: string }> = {
+  pat: {
+    name: 'Patience',
+    does: 'Tells the auto lineup how much to weight eyes over power. Higher patience puts on-base guys higher; lower patience stacks the bombers.',
+    why: 'Turn it up when you want walks and traffic. Turn it down when you want damage early and are willing to swing through more empty air.'
+  },
+  agg: {
+    name: 'Green light',
+    does: 'Greens steals and the extra base. Runners go more often, take third on singles, and try to score from first on doubles.',
+    why: 'A high green light manufactures runs with legs. It also burns outs on the bases when the other club has a cannon behind the plate.'
+  },
+  hook: {
+    name: 'Bullpen hook',
+    does: 'Sets how fast you pull a starter who is laboring. High hook means the pen is up early; low hook lets the starter work through traffic.',
+    why: 'Raise it to protect late leads with fresh arms. Drop it when your rotation is deep and you need to save the bullpen for tomorrow.'
+  }
+};
+
+export function dugoutSheet(key: DugoutKey): void {
+  const info = DUGOUT_INFO[key];
+  if (!info) return;
+  const me = store.me;
+  const val =
+    key === 'pat' ? me.strategy.patience :
+    key === 'agg' ? me.strategy.aggression :
+    me.strategy.bullpenHook;
+  const pct = Math.round((val || 0.5) * 100);
+  let s = `<div class="eyebrow">The dugout <b>${esc(info.name)}</b></div>
+    <h2 style="margin-bottom:10px">${esc(info.name)}</h2>
+    <div class="kv"><span class="k">Current</span><b>${pct}</b></div>
+    <div class="panel" style="margin-top:12px">
+      <div class="eyebrow">What it does</div>
+      <p style="font-size:15px;line-height:1.45;margin-top:6px">${esc(info.does)}</p>
+    </div>
+    <div class="panel">
+      <div class="eyebrow">Why it matters</div>
+      <p style="font-size:15px;line-height:1.45;margin-top:6px">${esc(info.why)}</p>
+    </div>
+    <p class="faint" style="font-size:13px;margin-top:12px;line-height:1.4">Drag the slider on the Roster tab to change it. Desk cards can nudge this for one series.</p>`;
+  openSheet(s);
+}

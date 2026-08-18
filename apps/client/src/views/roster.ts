@@ -45,13 +45,22 @@ export function viewRoster(): string {
     </div>
     <div class="eyebrow">The dugout <b>how you play</b></div>
     <div class="panel">
-      <div class="kv"><span class="k">Patience</span><b class="num">${pat}</b></div>
+      <div class="kv">
+        <span class="k" data-act="dugout" data-k="pat" style="cursor:pointer;border-bottom:1px solid rgba(255,255,255,.18)">Patience</span>
+        <b class="num">${pat}</b>
+      </div>
       <input type="range" min="5" max="95" value="${pat}" data-strat="pat" class="rslider"/>
-      <div class="kv"><span class="k">Green light</span><b class="num">${agg}</b></div>
+      <div class="kv">
+        <span class="k" data-act="dugout" data-k="agg" style="cursor:pointer;border-bottom:1px solid rgba(255,255,255,.18)">Green light</span>
+        <b class="num">${agg}</b>
+      </div>
       <input type="range" min="5" max="95" value="${agg}" data-strat="agg" class="rslider"/>
-      <div class="kv"><span class="k">Bullpen hook</span><b class="num">${hook}</b></div>
+      <div class="kv">
+        <span class="k" data-act="dugout" data-k="hook" style="cursor:pointer;border-bottom:1px solid rgba(255,255,255,.18)">Bullpen hook</span>
+        <b class="num">${hook}</b>
+      </div>
       <input type="range" min="5" max="95" value="${hook}" data-strat="hook" class="rslider"/>
-      <p class="faint" style="font-size:12px;line-height:1.4;margin-top:6px">Patience shapes the order. Green light steals and takes the extra base. The hook pulls the starter.</p>
+      <p class="faint" style="font-size:12px;line-height:1.4;margin-top:6px">Tap a setting for the full note. Drag the slider to change it.</p>
     </div>
     <div class="chiprow">
       ${([['lineup', 'Lineup'], ['rotation', 'Arms'], ['bench', 'Bench'], ['all', 'Everyone']] as const).map(([k, n]) =>

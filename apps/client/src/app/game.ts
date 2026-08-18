@@ -23,7 +23,7 @@ import { viewRoster, rosterGroups } from '../views/roster.js';
 import { viewMarket, boardOrder } from '../views/market.js';
 import { viewPark, projectRevenue } from '../views/park.js';
 import { viewLeague } from '../views/league.js';
-import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet, staffSheet } from '../views/sheets.js';
+import { playerSheet, fullBoard, seriesRecap, playoffSheet, offseasonSheet, staffSheet, dugoutSheet, type DugoutKey } from '../views/sheets.js';
 import { meFog } from '../views/helpers.js';
 import {
   startBroadcast, skipBroadcast, skipBroadcastGame,
@@ -844,6 +844,14 @@ export function handle(act: string, d: DOMStringMap): void {
       const role = d.k as 'scout' | 'coach' | 'trainer' | 'analyst';
       staffSheet(role);
       haptic.tap();
+      break;
+    }
+    case 'dugout': {
+      const key = d.k as DugoutKey;
+      if (key === 'pat' || key === 'agg' || key === 'hook') {
+        dugoutSheet(key);
+        haptic.tap();
+      }
       break;
     }
     case 'watchtape': {
