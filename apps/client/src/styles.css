@@ -288,12 +288,31 @@ h3{font-size:16px}
   text-align:center;font-family:var(--mono);font-size:9.5px;letter-spacing:.16em;
   color:var(--chalk-faint);text-transform:uppercase;margin-bottom:11px
 }
-.needrow{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.needrow{display:flex;gap:6px;flex-wrap:wrap;margin:0}
+.draft-need{margin-bottom:12px;padding-bottom:12px}
+.draft-need.collapsed{padding-bottom:10px;padding-top:10px}
+.draft-need-toggle{
+  display:flex;align-items:center;gap:8px;width:100%;
+  background:none;border:0;padding:0;margin:0 0 9px;cursor:pointer;
+  font-family:var(--mono);font-size:9.5px;letter-spacing:.22em;text-transform:uppercase;
+  color:var(--chalk-faint);text-align:left
+}
+.draft-need.collapsed .draft-need-toggle{margin-bottom:0}
+.draft-need-lab{flex:0 1 auto}
+.draft-need-lab b{color:var(--bulb);font-weight:500}
+.draft-need-toggle::after{content:'';flex:1;height:1px;background:var(--line);order:1}
+.draft-need-caret{
+  font-size:10px;letter-spacing:0;color:var(--chalk-faint);
+  flex:0 0 auto;order:2
+}
 .need{
   font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
-  padding:4px 7px;border:1px solid var(--line);border-radius:2px;color:var(--chalk-faint)
+  padding:5px 9px;border:1px solid var(--line-hi);border-radius:2px;color:var(--chalk-dim);
+  background:transparent;cursor:pointer;transition:border-color .15s,color .15s,background .15s
 }
+.need:active,.need:hover{border-color:var(--chalk-dim);color:var(--chalk)}
 .need.hot{border-color:rgba(255,180,60,.45);color:var(--manila)}
+.need.hot:active,.need.hot:hover{border-color:var(--bulb);color:var(--bulb)}
 
 /* ---------- draft card ---------- */
 .dcard-in.draft{

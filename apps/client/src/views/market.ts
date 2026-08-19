@@ -87,9 +87,38 @@ export function viewDraft(): string {
   </div>`;
 
   if (gaps.length) {
-    s += `<div class="needrow">` +
-      gaps.map((g) => `<span class="need${g.want - g.have >= 2 ? ' hot' : ''}">${g.pos} ${g.have}/${g.want}</span>`).join('') +
-      `</div>`;
+    const open = UI.draftNeedOpen;
+    const top = gaps[0];
+    const short = top.want - top.have;
+    const lead =
+      gaps.length === 1
+        ? short >= 2
+          ? 'Short at ' + top.pos + '. Do not leave the room without one.'
+          : 'One more ' + top.pos + ' and the need sheet clears.'
+        : 'Biggest holes first — ' +
+          gaps
+            .slice(0, 2)
+            .map((g) => g.pos)
+            .join(' and ') +
+          '. Stack those before you get cute.';
+    s += `<div class="panel draft-need${open ? '' : ' collapsed'}">
+      <button type="button" class="draft-need-toggle" data-act="draftneed-toggle">
+        <span class="draft-need-lab">From the analyst <b>need sheet</b></span>
+        <span class="draft-need-caret" aria-hidden="true">${open ? '▾' : '▸'}</span>
+      </button>`;
+    if (open) {
+      s += `<p class="dim" style="font-size:13.5px;line-height:1.4;margin:6px 0 10px">${esc(lead)} Tap a hole to jump the board.</p>
+        <div class="needrow">` +
+        gaps
+          .map((g) => {
+            const left = g.want - g.have;
+            const label = left === 1 ? g.pos + ' · take 1' : g.pos + ' · take ' + left;
+            return `<button type="button" class="need${left >= 2 ? ' hot' : ''}" data-act="draftneed" data-pos="${g.pos}">${label}</button>`;
+          })
+          .join('') +
+        `</div>`;
+    }
+    s += `</div>`;
   }
 
   const digest = UI.draftDigest;
@@ -120,7 +149,6 @@ export function viewDraft(): string {
     const top = board[UI.draftIdx];
     const rank = UI.draftIdx + 1;
     s += `<div class="eyebrow">Take a player <b>staff list ${rank} of ${board.length}</b></div>
-      <div class="swipehint">← next name · take him →</div>
       <div class="deck" id="drdeck">`;
     stack.slice().reverse().forEach((p, ri) => {
       const i = stack.length - 1 - ri;

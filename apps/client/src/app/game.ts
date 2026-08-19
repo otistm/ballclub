@@ -999,6 +999,27 @@ export function handle(act: string, d: DOMStringMap): void {
       closeSheet();
       doDraft(d.id!);
       break;
+    case 'draftneed-toggle':
+      UI.draftNeedOpen = !UI.draftNeedOpen;
+      haptic.tap();
+      render();
+      break;
+    case 'draftneed': {
+      const pos = d.pos as Position;
+      if (!pos) break;
+      const board = boardOrder();
+      const idx = board.findIndex((p) => p.pos === pos);
+      if (idx < 0) {
+        haptic.warn();
+        toast('Need sheet', 'Nobody left at ' + pos + ' on the board.', 'bulb');
+        break;
+      }
+      UI.draftIdx = idx;
+      haptic.select();
+      toast('Analyst', 'Jumping to ' + pos + '.', '');
+      render();
+      break;
+    }
     case 'rival':
       UI.trade.rival = d.k!;
       UI.trade.mine = [];

@@ -7,6 +7,7 @@ export const UI = {
   market: 'trade' as MarketTab,
   trade: { rival: '' as string, mine: [] as string[], theirs: [] as string[] },
   draftIdx: 0,
+  draftNeedOpen: false,
   simming: false,
   draftDigest: null as null | { you: string | null; then: string[] }
 };
