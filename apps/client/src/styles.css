@@ -642,7 +642,7 @@ h3{font-size:16px}
   text-transform:uppercase;color:var(--bulb);text-align:center;margin-bottom:12px
 }
 #bc-board{
-  display:flex;align-items:center;gap:8px;margin-bottom:10px
+  display:flex;align-items:center;gap:8px;margin-bottom:6px
 }
 .bc-side{flex:1;text-align:center}
 .bc-side .nm{
@@ -658,27 +658,39 @@ h3{font-size:16px}
   font-family:var(--mono);font-size:8px;letter-spacing:.18em;
   color:var(--chalk-faint);margin-top:2px
 }
-#bc-mid{flex:0 0 88px;display:flex;flex-direction:column;align-items:center;gap:6px}
+#bc-mid{flex:0 0 72px;display:flex;flex-direction:column;align-items:center;gap:8px}
 #bc-inn{display:flex;align-items:baseline;gap:4px;color:var(--bulb)}
 #bc-inn .arr{font-size:14px;line-height:1}
 #bc-inn .n{font-family:var(--dsp);font-size:28px;line-height:1}
 #bc-diamond{
-  position:relative;width:64px;height:64px
+  flex:0 0 auto;width:min(72%,220px);max-width:240px;aspect-ratio:1;
+  margin:4px auto 10px;position:relative
 }
-#bc-diamond .bag{
-  position:absolute;width:11px;height:11px;background:var(--line-hi);
-  transform:rotate(45deg);border:1px solid rgba(233,238,231,.12)
+#bc-diamond-svg{width:100%;height:100%;overflow:visible;display:block}
+#bc-diamond .chalkline{fill:none;stroke:var(--chalk);stroke-width:2.2;opacity:.45}
+#bc-diamond .basepad{
+  fill:#081A12;stroke:var(--chalk);stroke-width:2;opacity:.92;
+  transition:fill .28s
 }
-#bc-diamond .bag.on{
-  background:var(--bulb);border-color:var(--bulb);
-  box-shadow:0 0 10px rgba(255,180,60,.7)
+#bc-diamond .basepad.occ{
+  fill:var(--bulb);filter:drop-shadow(0 0 7px rgba(255,180,60,.85))
 }
-#bc-diamond .b2{top:4px;left:26px}
-#bc-diamond .b3{top:26px;left:4px}
-#bc-diamond .b1{top:26px;left:48px}
-#bc-diamond .home{
-  bottom:4px;left:27px;width:10px;height:10px;border-radius:1px;
-  background:var(--chalk-faint);transform:none
+#bc-diamond .runner{
+  fill:var(--chalk);stroke:var(--bulb);stroke-width:1.2;
+  filter:drop-shadow(0 0 4px rgba(255,180,60,.8));pointer-events:none
+}
+#bc-diamond .runner.dead{fill:var(--rust);stroke:#2a100c}
+#bc-diamond .runner.score{
+  animation:bc-scorepop .26s ease-out forwards;
+  transform-box:fill-box;transform-origin:center
+}
+@keyframes bc-scorepop{
+  0%{transform:scale(1);opacity:1}
+  100%{transform:scale(2.4);opacity:0}
+}
+#bc-diamond .outmark{
+  font-size:12px;font-family:var(--dsp);fill:var(--rust);
+  pointer-events:none;filter:drop-shadow(0 0 3px rgba(196,85,58,.85))
 }
 #bc-outs{display:flex;gap:5px}
 #bc-outs i{

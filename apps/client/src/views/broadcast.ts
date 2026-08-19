@@ -7,6 +7,7 @@ import type { GameSummary, MyPbp, PbpEvent, Team } from '@ballclub/engine';
 import { $, esc } from '../ui/dom.js';
 import { haptic, reduceMotion } from '../ui/ux.js';
 import anime from '../ui/motion.js';
+import { ensureDiamond, playDiamondBeat, resetDiamond, setPads } from '../ui/diamond.js';
 import { backdrop, marquee } from '../app/chrome.js';
 import { store } from '../app/store.js';
 
@@ -36,6 +37,7 @@ let ei = 0;
 let cards: Card[] = [];
 let onDone: (() => void) | null = null;
 let lastScore = { away: 0, home: 0 };
+let lastBases: boolean[] = [false, false, false];
 
 function speed(): number {
   return SPEEDS[speedIdx];
@@ -52,6 +54,7 @@ function finish(): void {
   if (!running) return;
   running = false;
   stopTimer();
+  resetDiamond();
   const el = $('#broadcast');
   el.classList.remove('on');
   el.setAttribute('aria-hidden', 'true');
@@ -80,7 +83,7 @@ function scoring(ev: PbpEvent, prev: { away: number; home: number }): boolean {
   return (ev.away ?? 0) > prev.away || (ev.home ?? 0) > prev.home;
 }
 
-function paintBoard(card: Card, ev?: PbpEvent): void {
+function paintBoard(card: Card, ev?: PbpEvent): Promise<void> {
   const away = ev?.away ?? 0;
   const home = ev?.home ?? 0;
   const inn = ev?.inn ?? 1;
@@ -88,6 +91,7 @@ function paintBoard(card: Card, ev?: PbpEvent): void {
   const outs = ev?.outs ?? 0;
   const bases = ev?.bases ?? [false, false, false];
   const me = store.me.id;
+  const prevBases = lastBases.slice();
 
   const prevAway = Number(($('#bc-away .sc') as HTMLElement | null)?.textContent || 0);
   const prevHome = Number(($('#bc-home .sc') as HTMLElement | null)?.textContent || 0);
@@ -103,15 +107,6 @@ function paintBoard(card: Card, ev?: PbpEvent): void {
   $('#bc-home').innerHTML = side(card.home, home, 'home');
   $('#bc-inn').innerHTML = `<span class="arr">${half ? '▼' : '▲'}</span><span class="n">${inn}</span>`;
 
-  document.querySelectorAll('#bc-diamond .bag[data-bag]').forEach((el) => {
-    const bag = Number((el as HTMLElement).dataset.bag);
-    const on = !!bases[bag - 1];
-    const was = el.classList.contains('on');
-    el.classList.toggle('on', on);
-    if (!reduceMotion && on && !was) {
-      anime({ targets: el, scale: [0.4, 1.15, 1], opacity: [0.4, 1], duration: 320, easing: 'easeOutQuad' });
-    }
-  });
   document.querySelectorAll('#bc-outs i').forEach((el, i) => {
     const on = i < Math.min(3, outs);
     const was = el.classList.contains('on');
@@ -129,6 +124,17 @@ function paintBoard(card: Card, ev?: PbpEvent): void {
       anime({ targets: '#bc-home .sc', scale: [1, 1.35, 1], duration: 380, easing: 'easeOutElastic' });
     }
   }
+
+  const beat = ev
+    ? playDiamondBeat(prevBases, bases, ev, speed())
+    : Promise.resolve().then(() => {
+      ensureDiamond();
+      setPads(bases);
+    });
+
+  return beat.then(() => {
+    lastBases = bases.slice();
+  });
 }
 
 function paintCall(ev: PbpEvent): void {
@@ -185,7 +191,9 @@ function showIntro(card: Card): void {
   ($('#bc-call .lab') as HTMLElement).textContent = 'GAME ' + card.n + ' OF ' + card.of;
   ($('#bc-call .txt') as HTMLElement).textContent = card.away.abbr + ' AT ' + card.home.abbr;
   $('#bc-feed').innerHTML = '';
-  paintBoard(card);
+  lastBases = [false, false, false];
+  resetDiamond();
+  void paintBoard(card);
   lastScore = { away: 0, home: 0 };
 }
 
@@ -199,7 +207,8 @@ function showFinal(card: Card): void {
   ($('#bc-call .lab') as HTMLElement).textContent = won ? 'WIN' : 'LOSS';
   ($('#bc-call .txt') as HTMLElement).textContent =
     my + '–' + th + (card.gm.walkoff ? '  WALK-OFF' : card.gm.innings > 9 ? '  ' + card.gm.innings + ' INN' : '');
-  paintBoard(card, {
+  lastBases = [false, false, false];
+  void paintBoard(card, {
     t: 'half', inn: card.gm.innings, half: 1, txt: '',
     away: card.gm.awayRuns, home: card.gm.homeRuns, outs: 3, bases: [false, false, false]
   });
@@ -235,14 +244,18 @@ function step(): void {
       const nextScore = { away: ev.away ?? lastScore.away, home: ev.home ?? lastScore.home };
       if (!keep) {
         lastScore = nextScore;
+        if (ev.bases) lastBases = ev.bases.slice();
         continue;
       }
-      paintBoard(card, ev);
       paintCall(ev);
       pushFeed(ev);
       react(ev, lastScore);
       lastScore = nextScore;
-      timer = setTimeout(step, delayFor(ev));
+      const wait = Math.max(delayFor(ev), reduceMotion ? 0 : 200);
+      void paintBoard(card, ev).then(() => {
+        if (!running) return;
+        timer = setTimeout(step, wait);
+      });
       return;
     }
     phase = 'final';
@@ -285,9 +298,11 @@ export function startBroadcast(opts: BroadcastOpts): void {
   gi = 0;
   ei = 0;
   phase = 'intro';
+  lastBases = [false, false, false];
   highlights = reduceMotion ? true : highlights;
   running = true;
   paintChrome();
+  ensureDiamond();
   const el = $('#broadcast');
   el.classList.add('on');
   el.setAttribute('aria-hidden', 'false');
@@ -302,6 +317,7 @@ export function skipBroadcast(): void {
 export function skipBroadcastGame(): void {
   if (!running) return;
   stopTimer();
+  resetDiamond();
   const card = cards[gi];
   if (!card) {
     finish();
