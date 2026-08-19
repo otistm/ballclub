@@ -100,7 +100,7 @@ describe('scouting', () => {
     const target = league.draftPool.find((p) => p.scouted < 1)!;
     const r = applyAction(league, { t: 'scout', teamId: me.id, playerId: target.id });
     expect(r.ok).toBe(true);
-    expect(target.scouted).toBe(1);
+    expect(me.scoutFiles?.[target.id]).toBe(1);
     const r2 = applyAction(league, { t: 'scout', teamId: me.id, playerId: target.id });
     expect(r2.ok).toBe(false); // already known, no AP spent
   });

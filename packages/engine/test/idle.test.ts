@@ -99,6 +99,7 @@ describe('advanceIdle', () => {
   it('plays the week once every human is listed idle', () => {
     const league = draftedByIdle(91);
     markHuman(league, 't1');
+    applyAction(league, { t: 'setFieldAuto', teamId: 't1' });
     const r = applyAction(league, { t: 'advanceIdle', idleTeamIds: ['t0', 't1'] });
     expect(r.idle?.desks).toBe(2);
     expect(r.idle?.week).toBe(true);

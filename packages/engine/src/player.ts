@@ -2,7 +2,7 @@ import { clamp, gauss, hashStr, mulberry32, pick, R, RI, shuffle, type Rng } fro
 import { FIRST, LAST } from './data/names.js';
 import { HIT_POS, PIT_POS, POS_DEF } from './data/positions.js';
 import { TRAITS } from './data/traits.js';
-import type { HitStats, PitStats, Player, PlayerOrigin, Position, Ratings, ShownRating } from './types.js';
+import type { HitStats, PitStats, Player, PlayerOrigin, Position, Ratings, ShownRating, Team } from './types.js';
 
 /** Monotonic id source, stored on the league so ids survive reloads. */
 export interface IdSource {
@@ -31,7 +31,7 @@ export function has(p: Player, t: string): boolean {
 }
 
 export function isPitcher(p: Player): boolean {
-  return PIT_POS.indexOf(p.pos) >= 0;
+  return PIT_POS.includes(p.pos as (typeof PIT_POS)[number]);
 }
 
 export function ovr(p: Player): number {
@@ -60,7 +60,7 @@ export function value(p: Player): number {
 }
 
 export function genPlayer(rng: Rng, ids: IdSource, opts: GenPlayerOpts = {}): Player {
-  const isP = opts.pos ? PIT_POS.indexOf(opts.pos) >= 0 : rng() < 0.42;
+  const isP = opts.pos ? PIT_POS.includes(opts.pos as (typeof PIT_POS)[number]) : rng() < 0.42;
   const pos: Position = opts.pos || (isP ? (rng() < 0.55 ? 'SP' : 'RP') : pick(rng, HIT_POS));
   const age = opts.age != null ? opts.age : Math.round(clamp(gauss(rng, 26.5, 4.2), 19, 39));
   const tier = opts.tier != null ? opts.tier : gauss(rng, 0, 1);
@@ -136,9 +136,15 @@ export function genPlayer(rng: Rng, ids: IdSource, opts: GenPlayerOpts = {}): Pl
 
 /* ---------- scouting fog ---------- */
 
-export function shown(p: Player, key: keyof Ratings, fogMul = 1): ShownRating {
-  if (p.scouted >= 1) return { v: p.r[key], lo: p.r[key], hi: p.r[key], exact: true };
-  const fog = ((1 - p.scouted) * 18 + 2) * fogMul;
+function knownLevel(p: Player, team?: Team | null): number {
+  if (team?.scoutFiles && (team.scoutFiles[p.id] || 0) >= 1) return 1;
+  return p.scouted;
+}
+
+export function shown(p: Player, key: keyof Ratings, fogMul = 1, team?: Team | null): ShownRating {
+  const sc = knownLevel(p, team);
+  if (sc >= 1) return { v: p.r[key], lo: p.r[key], hi: p.r[key], exact: true };
+  const fog = ((1 - sc) * 18 + 2) * fogMul;
   const rng = mulberry32(hashStr(p.id + key));
   const off = (rng() - 0.5) * fog * 0.6;
   const c = clamp(p.r[key] + off, 5, 99);
@@ -150,9 +156,10 @@ export function shown(p: Player, key: keyof Ratings, fogMul = 1): ShownRating {
   };
 }
 
-export function shownOvr(p: Player, fogMul = 1): ShownRating {
-  if (p.scouted >= 1) return { v: p.ovr, lo: p.ovr, hi: p.ovr, exact: true };
-  const fog = ((1 - p.scouted) * 14 + 2) * fogMul;
+export function shownOvr(p: Player, fogMul = 1, team?: Team | null): ShownRating {
+  const sc = knownLevel(p, team);
+  if (sc >= 1) return { v: p.ovr, lo: p.ovr, hi: p.ovr, exact: true };
+  const fog = ((1 - sc) * 14 + 2) * fogMul;
   const rng = mulberry32(hashStr(p.id + 'ovr'));
   const c = clamp(p.ovr + (rng() - 0.5) * fog * 0.7, 5, 99);
   return {

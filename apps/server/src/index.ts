@@ -11,6 +11,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   makeInviteCode, isValidInviteCode, applyAction, replayLeague, actionTeamId, createLeague,
+  PROTOCOL_VERSION,
   type ClientMessage, type ServerMessage, type LoggedAction, type HumanConfig, type PresenceBeat,
   type League, type GameAction
 } from '@ballclub/engine';
@@ -151,21 +152,83 @@ function ensureLeague(room: Room): League {
   return room.league;
 }
 
-/** Shared calendar actions anyone may publish; club-scoped actions need ownership. */
+function connectedTeamIds(room: Room): Set<string> {
+  const ids = new Set<string>();
+  room.meta.forEach((m, sock) => {
+    if (m.teamId && room.members.has(sock)) ids.add(m.teamId);
+  });
+  return ids;
+}
+
+function protocolOk(v: unknown): boolean {
+  return typeof v === 'number' && v === PROTOCOL_VERSION;
+}
+
+/**
+ * Club-scoped actions need ownership. Calendar actions need an identified human.
+ * advanceIdle may only list humans who are not currently connected.
+ */
 function mayPublish(room: Room, ws: WebSocket, a: GameAction): string | null {
-  const tid = actionTeamId(a);
-  if (!tid) return null;
+  const meta = room.meta.get(ws);
+  const league = ensureLeague(room);
+
   if (a.t === 'claimTeam') {
-    const league = ensureLeague(room);
     const seat = league.teams.find((t) => t.id === a.teamId);
     if (!seat) return 'No such club';
     if (seat.isHuman) return 'That club is taken';
     return null;
   }
-  if (a.t === 'advanceIdle') return null;
-  const meta = room.meta.get(ws);
-  // allow first publishes before hello (host mid-onboard); once identified, enforce
+
+  if (a.t === 'advanceIdle') {
+    if (!meta?.teamId) return 'Identify your club first';
+    const live = connectedTeamIds(room);
+    for (const id of a.idleTeamIds) {
+      const seat = league.teams.find((t) => t.id === id);
+      if (!seat || !seat.isHuman) return 'Bad idle list';
+      if (live.has(id)) return 'That club is still in the room';
+    }
+    return null;
+  }
+
+  const tid = actionTeamId(a);
+  if (!tid) {
+    // week / draft / playoffs / offseason — any identified human in the room
+    if (!meta?.teamId) return 'Identify your club first';
+    const seat = league.teams.find((t) => t.id === meta.teamId);
+    if (!seat?.isHuman) return 'Not your club';
+    return null;
+  }
+
   if (meta?.teamId && meta.teamId !== tid) return 'Not your club';
+  if (!meta?.teamId) {
+    // Allow first onboard publishes only for the host human seat matching the action
+    const seat = league.teams.find((t) => t.id === tid);
+    if (!seat?.isHuman) return 'Identify your club first';
+  }
+  return null;
+}
+
+function bindIdentity(room: Room, ws: WebSocket, teamId: string): string | null {
+  let m = room.meta.get(ws);
+  if (!m) {
+    m = { teamId: null, lastSeen: Date.now() };
+    room.meta.set(ws, m);
+  }
+  if (m.teamId && m.teamId !== teamId) return 'Already identified as another club';
+  if (m.teamId === teamId) {
+    m.lastSeen = Date.now();
+    return null;
+  }
+  const league = ensureLeague(room);
+  const seat = league.teams.find((t) => t.id === teamId);
+  if (!seat || !seat.isHuman) return 'That club is not yours';
+  for (const [other, om] of room.meta) {
+    if (other !== ws && om.teamId === teamId && room.members.has(other)) {
+      return 'That club is already connected';
+    }
+  }
+  m.teamId = teamId;
+  m.lastSeen = Date.now();
   return null;
 }
 
@@ -187,6 +250,10 @@ wss.on('connection', (ws) => {
         break;
 
       case 'create': {
+        if (!protocolOk(msg.v)) {
+          send(ws, { t: 'error', msg: 'Outdated client — refresh and try again' });
+          return;
+        }
         let code = makeInviteCode();
         while (rooms.has(code)) code = makeInviteCode();
         const room: Room = {
@@ -202,6 +269,10 @@ wss.on('connection', (ws) => {
       }
 
       case 'join': {
+        if (!protocolOk(msg.v)) {
+          send(ws, { t: 'error', msg: 'Outdated client — refresh and try again' });
+          return;
+        }
         const code = msg.code.toUpperCase();
         if (!isValidInviteCode(code)) {
           send(ws, { t: 'error', msg: 'That is not a league code' });
@@ -227,7 +298,11 @@ wss.on('connection', (ws) => {
           send(ws, { t: 'error', msg: 'Not in that league' });
           return;
         }
-        touch(room, ws, msg.teamId);
+        const err = bindIdentity(room, ws, msg.teamId);
+        if (err) {
+          send(ws, { t: 'error', msg: err });
+          return;
+        }
         broadcast(room, presenceMsg(room));
         break;
       }
@@ -250,6 +325,12 @@ wss.on('connection', (ws) => {
           send(ws, { t: 'error', msg: result.err || 'Illegal move' });
           return;
         }
+        if (msg.a.t === 'claimTeam') {
+          const m = room.meta.get(ws) || { teamId: null, lastSeen: Date.now() };
+          m.teamId = msg.a.teamId;
+          m.lastSeen = Date.now();
+          room.meta.set(ws, m);
+        }
         const by = room.meta.get(ws)?.teamId || null;
         const entry: LoggedAction = { seq: ++room.seq, at: Date.now(), by, a: msg.a };
         room.log.push(entry);
@@ -260,10 +341,11 @@ wss.on('connection', (ws) => {
 
       case 'sync': {
         const room = rooms.get(msg.code);
-        if (!room) {
-          send(ws, { t: 'error', msg: 'No league with that code' });
+        if (!room || !room.members.has(ws)) {
+          send(ws, { t: 'error', msg: 'Not in that league' });
           return;
         }
+        touch(room, ws);
         send(ws, { t: 'sync', code: room.code, log: room.log.filter((e) => e.seq > msg.from) });
         break;
       }

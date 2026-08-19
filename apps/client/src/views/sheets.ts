@@ -6,7 +6,7 @@ import {
   type SeasonLogHit, type SeasonLogPit, type SeriesResult, type StaffRole
 } from '@ballclub/engine';
 import { esc, openSheet, printReceipt } from '../ui/dom.js';
-import { M, pctS } from '../ui/format.js';
+import { M, pctS, cssColor } from '../ui/format.js';
 import { store } from '../app/store.js';
 import { findPlayer, meFog, ratingBars } from './helpers.js';
 import { boardOrder } from './market.js';
@@ -17,7 +17,7 @@ export function playerSheet(id: string): void {
   const p = findPlayer(L, me.roster, id);
   if (!p) return;
   const mine = me.roster.some((x) => x.id === id);
-  const so = shownOvr(p, meFog());
+  const so = shownOvr(p, meFog(), store.me);
   const isP = isPitcher(p);
   const owner = L.teams.find((t) => t.roster.some((x) => x.id === id));
   const traits = p.traits.map((t) => TRAITS.find((x) => x.key === t)).filter((t): t is NonNullable<typeof t> => Boolean(t));
@@ -116,7 +116,7 @@ export function fullBoard(): void {
       : 'Sorted by how your staff grades them. You pick when the clock comes back to you.'}</p>
     <div class="panel" style="padding-top:4px">`;
   board.forEach((p, i) => {
-    const so = shownOvr(p, meFog());
+    const so = shownOvr(p, meFog(), store.me);
     s += `<div class="prow" data-act="${onClock ? 'draftpick' : 'player'}" data-id="${p.id}">
       <div class="ppos${isPitcher(p) ? ' p' : ''}">${p.pos}</div>
       <div class="pinfo"><div class="pname">${esc(p.name)}</div>
@@ -472,12 +472,12 @@ export function gameBoxSheet(week: number, gameIndex: number): void {
     <div class="panel">
       <div class="boxscore-final">
         <div class="bs-side">
-          <div class="bs-abbr" style="color:${away.color}">${esc(away.abbr)}</div>
+          <div class="bs-abbr" style="color:${cssColor(away.color)}">${esc(away.abbr)}</div>
           <div class="bs-runs">${gm.awayRuns}</div>
         </div>
         <div class="bs-at">@</div>
         <div class="bs-side">
-          <div class="bs-abbr" style="color:${home.color}">${esc(home.abbr)}</div>
+          <div class="bs-abbr" style="color:${cssColor(home.color)}">${esc(home.abbr)}</div>
           <div class="bs-runs">${gm.homeRuns}</div>
         </div>
       </div>

@@ -24,7 +24,7 @@ export function developRoster(league: League, t: Team): void {
     if (p.age < peak && gap > 0) delta = gap * 0.045 * dev * mentor * R(rng, 0.4, 1.6);
     else if (p.age > peak + 3) delta = -R(rng, 0.05, 0.45) * (1 + (p.age - peak - 3) * 0.15);
     if (Math.abs(delta) < 0.01) return;
-    const keys: RatingKey[] = PIT_POS.indexOf(p.pos) >= 0
+    const keys: RatingKey[] = PIT_POS.includes(p.pos as 'SP' | 'RP')
       ? ['stuff', 'ctl', 'mov', 'stam']
       : ['con', 'pow', 'eye', 'spd', 'fld', 'arm'];
     p._acc = (p._acc || 0) + delta;

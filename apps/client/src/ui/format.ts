@@ -1,7 +1,12 @@
 /** Client-side formatting and theming helpers. */
-import { fmtMoney } from '@ballclub/engine';
+import { fmtMoney, sanitizeColor } from '@ballclub/engine';
 
 export const M = fmtMoney;
+
+/** Safe color for inline style attributes. */
+export function cssColor(raw: string, fallback = '#888888'): string {
+  return sanitizeColor(raw, fallback);
+}
 
 /** .xxx / 1.000 batting-average style formatting. */
 export const pctS = (x: number): string =>

@@ -1,4 +1,5 @@
 import { gauss, hashStr, mulberry32, pick, RI, shuffle, type Rng } from './rng.js';
+import { sanitizeColor } from './format.js';
 import { CITIES, GLYPHS, MASCOTS } from './data/names.js';
 import { CLASSES, CLASS_LIST } from './data/classes.js';
 import { GAMES_PER_WEEK, SEASON_WEEKS } from './data/positions.js';
@@ -43,7 +44,7 @@ export function newTeam(
   return {
     id: '', slot: 0, city, mascot, name: city + ' ' + mascot,
     abbr: (city.replace(/[^A-Za-z]/g, '').slice(0, 2) + mascot.slice(0, 1)).toUpperCase(),
-    cls, color, glyph, vibe: vibe || 'NIGHT', isHuman: !!isHuman, ownerId: isHuman ? 'local' : null,
+    cls, color: sanitizeColor(color), glyph, vibe: vibe || 'NIGHT', isHuman: !!isHuman, ownerId: isHuman ? 'local' : null,
     roster: [], cash: c.cash, startCash: c.cash, fanTrust: c.fanTrust,
     staff: { ...c.staff },
     stadium: { seats: 0, lights: 0, food: 0, board: 0, clubhouse: 0, academy: 0 },

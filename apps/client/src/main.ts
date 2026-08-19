@@ -16,6 +16,10 @@ function wireNet(): void {
       store.applyRemote(entry);
       if (store.league) render();
     },
+    onSync: (log) => {
+      store.applySync(log);
+      if (store.league) render();
+    },
     onError: (msg) => toast('League wire', msg, 'bad'),
     onPresence: (n, beats) => {
       setPresenceBeats(beats);
@@ -49,7 +53,10 @@ async function resumeShared(): Promise<void> {
   if (net.mode !== 'shared' || !net.code) return;
   try {
     await net.connect(WS_URL);
-    net.send({ t: 'sync', code: net.code, from: store.seq });
+    // Must be a member before sync; re-join restores membership after reload
+    const joined = await net.joinRoom(net.code, store.me?.name || store.human?.name || 'GM');
+    const newer = (joined.log || []).filter((e) => e.seq > store.seq);
+    if (newer.length) store.applySync(newer);
     net.identify(store.meId);
   } catch {
     /* solo snapshot still plays offline */

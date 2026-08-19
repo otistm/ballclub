@@ -39,7 +39,7 @@ export function release(league: League, team: Team, playerId: string): ReleaseRe
   if (i < 0) return { ok: false };
   const p = team.roster[i];
   const dead = Math.round(p.salary * 0.35);
-  team.cash -= dead;
+  team.cash = Math.max(-250000, team.cash - dead);
   team.roster.splice(i, 1);
   p.teamId = null;
   league.freeAgents.push(p);

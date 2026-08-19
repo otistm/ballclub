@@ -63,8 +63,8 @@ describe('Wave A unlocks', () => {
   it('locks a lineup and clears it', () => {
     const league = drafted(44);
     const t = league.teams[0];
-    const ids = t.roster.filter((p) => p.pos !== 'SP' && p.pos !== 'RP').slice(0, 9).map((p) => p.id);
-    while (ids.length < 9) ids.push(t.roster[ids.length % t.roster.length].id);
+    expect(applyAction(league, { t: 'setFieldAuto', teamId: t.id }).ok).toBe(true);
+    const ids = (['C', '1B', '2B', '3B', 'SS', 'LF', 'CF', 'RF', 'DH'] as const).map((pos) => t.fieldIds![pos]!);
     expect(applyAction(league, { t: 'setLineup', teamId: t.id, ids }).ok).toBe(true);
     expect(t.lineupIds?.length).toBe(9);
     expect(applyAction(league, { t: 'setLineup', teamId: t.id, ids: [] }).ok).toBe(true);

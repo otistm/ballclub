@@ -3,6 +3,7 @@ import { CLASSES } from './data/classes.js';
 import { needScore } from './draft.js';
 import { award } from './league.js';
 import { value } from './player.js';
+import { scrubTeamAssignments } from './lineup.js';
 import { dealsMul, noteOffice } from './progress.js';
 import type { League, Player, Team } from './types.js';
 
@@ -75,6 +76,8 @@ export function execTrade(
     p.scouted = 1;
     myTeam.roster.push(p);
   });
+  scrubTeamAssignments(myTeam);
+  scrubTeamAssignments(theirTeam);
   if (ev.delta >= Math.max(12, ev.myVal * 0.4)) award(myTeam, 'FLEECED', league);
   const give = myOut.map((p) => p.name).join(', ') || 'nobody';
   const get = theirOut.map((p) => p.name).join(', ') || 'nobody';

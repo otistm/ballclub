@@ -21,7 +21,7 @@ export function findPlayer(L: League, meRoster: Player[], id: string): Player | 
 }
 
 export function playerRow(p: Player, extra?: string | null, role?: string | null): string {
-  const so = shownOvr(p, meFog());
+  const so = shownOvr(p, meFog(), store.me);
   const isP = isPitcher(p);
   const cond = Math.round(p.cond);
   const cc = cond > 60 ? '' : cond > 30 ? 'low' : 'bad';
@@ -53,7 +53,7 @@ export function ratingKeys(p: Player): [keyof Ratings, string][] {
 
 export function ratingBars(p: Player): string {
   return `<div class="bars">${ratingKeys(p).map(([k, lab]) => {
-    const sh = shown(p, k, meFog());
+    const sh = shown(p, k, meFog(), store.me);
     return `<div class="bar"><div class="k">${lab}</div><div class="t">
       ${sh.exact
         ? `<i class="f" style="width:${sh.v}%"></i>`

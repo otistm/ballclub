@@ -78,10 +78,12 @@ export function playWeek(league: League): WeekOutcome | { done: true } {
     if (gamesPlayed === pr.games && hw === pr.games) award(home, 'SWEEP', league);
     if (gamesPlayed === pr.games && aw === pr.games) award(away, 'SWEEP', league);
     if (home.isHuman || away.isHuman) {
-      const results = out.games.slice(-gamesPlayed);
-      const pbps = (league.myPbp || []).filter((m) => m.homeId === home.id && m.awayId === away.id);
-      if (home.isHuman) scoreHumanSeries(home, { won: hw, lost: aw, games: Math.max(1, gamesPlayed), isHome: true, results, pbps });
-      if (away.isHuman) scoreHumanSeries(away, { won: aw, lost: hw, games: Math.max(1, gamesPlayed), isHome: false, results, pbps });
+      if (gamesPlayed > 0) {
+        const results = out.games.slice(-gamesPlayed);
+        const pbps = (league.myPbp || []).filter((m) => m.homeId === home.id && m.awayId === away.id);
+        if (home.isHuman) scoreHumanSeries(home, { won: hw, lost: aw, games: gamesPlayed, isHome: true, results, pbps });
+        if (away.isHuman) scoreHumanSeries(away, { won: aw, lost: hw, games: gamesPlayed, isHome: false, results, pbps });
+      }
     }
   });
 

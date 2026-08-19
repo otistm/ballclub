@@ -29,6 +29,8 @@ function playFullSeason(league: League): void {
   let guard = 0;
   while (league.phase === 'regular' && guard++ < 40) {
     applyAction(league, { t: 'scenario', teamId: 't0', side: 'left' });
+    // Injuries can open a field hole — refill so the season can finish in tests
+    applyAction(league, { t: 'setFieldAuto', teamId: 't0' });
     applyAction(league, { t: 'week' });
   }
 }

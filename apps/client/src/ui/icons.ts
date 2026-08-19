@@ -1,4 +1,5 @@
 /** Team badge art (full-color PNGs) and stroked UI icons. */
+import { sanitizeColor } from '@ballclub/engine';
 
 /** Canonical files in /badges. Old glyph names alias to the closest new mark. */
 const GLYPH_FILE: Record<string, string> = {
@@ -21,7 +22,7 @@ export const g = (k: string): string =>
 
 /** Badge on a colored circle — use when the parent is not already the crest. */
 export const mark = (k: string, color: string): string =>
-  '<span class="mark" style="background:' + color + '">' + g(k) + '</span>';
+  '<span class="mark" style="background:' + sanitizeColor(color) + '">' + g(k) + '</span>';
 
 export const ICON: Record<string, string> = {
   club: '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.6V20h14V9.6"/><path d="M9.5 20v-5h5v5"/>',

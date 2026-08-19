@@ -198,7 +198,7 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
       const slot: BaseSlot = { p: bat, resp: def.pit };
 
       if (o.k === 'BB' || o.k === 'HBP') {
-        if (o.k === 'BB') { bat.st.bb++; def.pit.pst.bb++; }
+        if (o.k === 'BB' || o.k === 'HBP') { bat.st.bb++; def.pit.pst.bb++; }
         // forced advancement only
         if (bases[0]) {
           if (bases[1]) {
@@ -256,9 +256,24 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
             else to = rng() < clamp(0.28 + sz / 260 + (agg - 0.5) * 0.16 + wheels, 0.1, 0.68) ? 2 : 1;
           }
           if (to >= 3) { scoreFrom(rr); rbi++; }
-          else nb[to] = rr;
+          else if (nb[to]) {
+            // bag already taken by a trailing runner — hold / push the earlier man home if needed
+            if (to + 1 >= 3) { scoreFrom(rr); rbi++; }
+            else if (!nb[to + 1]) nb[to + 1] = rr;
+            else { scoreFrom(rr); rbi++; }
+          } else {
+            nb[to] = rr;
+          }
         }
-        nb[adv - 1] = slot;
+        // Batter takes their bag; if occupied, push occupant forward or score
+        const batBag = adv - 1;
+        if (nb[batBag]) {
+          const occ = nb[batBag]!;
+          if (batBag + 1 >= 3) { scoreFrom(occ); rbi++; }
+          else if (!nb[batBag + 1]) nb[batBag + 1] = occ;
+          else { scoreFrom(occ); rbi++; }
+        }
+        nb[batBag] = slot;
         bases = nb;
         bat.st.rbi += rbi;
         emit({
@@ -292,6 +307,18 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
         }
       }
 
+      // Walk-off ends the half before any steal attempt
+      if (outs >= 3) break;
+      if (offIdx === 1 && inn >= 9 && sides[1].runs + runs > sides[0].runs) {
+        walkoff = true;
+        const last = pbp[pbp.length - 1];
+        if (last) {
+          last.big = true;
+          if (last.txt.indexOf('WALK-OFF') < 0) last.txt += ' — WALK-OFF';
+        }
+        break;
+      }
+
       // steal attempt — aggression greens the light; Cannon catchers throw them out
       if (bases[0] && !bases[1] && outs < 3) {
         const rr = bases[0];
@@ -321,15 +348,6 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
       }
 
       if (outs >= 3) break;
-      if (offIdx === 1 && inn >= 9 && sides[1].runs + runs > sides[0].runs) {
-        walkoff = true;
-        const last = pbp[pbp.length - 1];
-        if (last) {
-          last.big = true;
-          if (last.txt.indexOf('WALK-OFF') < 0) last.txt += ' — WALK-OFF';
-        }
-        break;
-      }
     }
     off.runs += runs;
     (offIdx === 0 ? line.away : line.home).push(runs);
@@ -345,11 +363,19 @@ export function simGame(home: Team, away: Team, seed: number): GameResult | { ok
     }
     halfInning(1, inning);
     if (walkoff) { done = true; break; }
-    if (inning >= 9 && sides[0].runs !== sides[1].runs) done = true;
-    else if (inning >= 14) {
-      // break the tie
-      if (sides[0].runs === sides[1].runs) sides[rng() < 0.5 ? 0 : 1].runs++;
+    if (inning >= 9 && sides[0].runs !== sides[1].runs) {
       done = true;
+      break;
+    }
+    if (inning >= 14) {
+      // break the tie — count on the line score
+      if (sides[0].runs === sides[1].runs) {
+        const s = rng() < 0.5 ? 0 : 1;
+        sides[s].runs++;
+        (s === 0 ? line.away : line.home).push(1);
+      }
+      done = true;
+      break;
     }
     inning++;
   }

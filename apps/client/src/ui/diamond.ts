@@ -195,35 +195,60 @@ function isBatterOut(ev: PbpEvent): boolean {
 export function inferMoves(prev: boolean[], next: boolean[], ev: PbpEvent): {
   moves: RunnerMove[];
   outAnim: boolean;
+  outAt?: number;
 } {
   if (ev.t === 'half') return { moves: [], outAnim: false };
   if (ev.t === 'sb') return { moves: stealMoves(prev, next), outAnim: false };
-  if (ev.t === 'cs') return { moves: [], outAnim: true };
+  if (ev.t === 'cs') {
+    let outAt = 1;
+    for (let i = 0; i < 3; i++) if (prev[i] && !next[i]) outAt = i + 1;
+    return { moves: [], outAnim: true, outAt };
+  }
 
   const o = outcomeFromEvent(ev);
   if (o && (o.kind === 'hit' || o.kind === 'walk')) {
     const r = advanceMoves(prev, o);
-    return { moves: r.moves, outAnim: false };
+    const match = r.bases[0] === next[0] && r.bases[1] === next[1] && r.bases[2] === next[2];
+    if (match) return { moves: r.moves, outAnim: false };
+    return { moves: deltaMoves(prev, next, o.bases), outAnim: false };
   }
   if (ev.k === 'SF') {
-    const moves: RunnerMove[] = [];
-    for (let i = 2; i >= 0; i--) {
-      if (prev[i] && !next[i]) {
-        let landed = false;
-        for (let j = i + 1; j < 3; j++) {
-          if (next[j] && !prev[j]) {
-            moves.push({ from: i + 1, to: j + 1 });
-            landed = true;
-            break;
-          }
-        }
-        if (!landed) moves.push({ from: i + 1, to: 4 });
+    return { moves: deltaMoves(prev, next, 0), outAnim: false };
+  }
+  if (isBatterOut(ev)) return { moves: [], outAnim: true, outAt: 0 };
+  return { moves: [], outAnim: false };
+}
+
+/** Occupancy-delta paths when advanceMoves disagrees with engine next bases. */
+function deltaMoves(prev: boolean[], next: boolean[], batterTo: number): RunnerMove[] {
+  const moves: RunnerMove[] = [];
+  const claimed = new Set<number>();
+  for (let i = 2; i >= 0; i--) {
+    if (!(prev[i] && !next[i])) continue;
+    let to = 4;
+    for (let j = i + 1; j < 3; j++) {
+      if (next[j] && !prev[j] && !claimed.has(j + 1)) {
+        to = j + 1;
+        claimed.add(to);
+        break;
       }
     }
-    return { moves, outAnim: false };
+    moves.push({ from: i + 1, to });
   }
-  if (isBatterOut(ev)) return { moves: [], outAnim: true };
-  return { moves: [], outAnim: false };
+  if (batterTo >= 4) {
+    moves.push({ from: 0, to: 4 });
+  } else if (batterTo >= 1) {
+    if (next[batterTo - 1]) moves.push({ from: 0, to: batterTo });
+    else {
+      for (let j = 0; j < 3; j++) {
+        if (next[j] && !prev[j] && !claimed.has(j + 1)) {
+          moves.push({ from: 0, to: j + 1 });
+          break;
+        }
+      }
+    }
+  }
+  return moves;
 }
 
 function animateRunners(moves: RunnerMove[], leg = 220): Promise<void> {
@@ -281,17 +306,18 @@ function animateRunners(moves: RunnerMove[], leg = 220): Promise<void> {
   }))).then(() => undefined);
 }
 
-function animateOut(): Promise<void> {
+function animateOut(atBase = 0): Promise<void> {
   const svg = root();
   if (!svg || reduceMotion) return Promise.resolve();
   const my = ++gen;
+  const xy = BASE_XY[Math.max(0, Math.min(3, atBase))] || BASE_XY[0];
   return new Promise((res) => {
-    const c = svgEl('circle', { class: 'runner dead', r: 4.2, cx: 50, cy: 92 });
+    const c = svgEl('circle', { class: 'runner dead', r: 4.2, cx: xy[0], cy: xy[1] });
     paintRunner(c, true);
     const mark = svgEl('text', {
       class: 'outmark',
-      x: 50,
-      y: 86,
+      x: xy[0],
+      y: xy[1] - 6,
       'text-anchor': 'middle',
       opacity: 0
     });
@@ -317,10 +343,10 @@ function animateOut(): Promise<void> {
         return;
       }
       const u = s - 0.22;
-      c.setAttribute('cx', String(50 + vx * u));
-      c.setAttribute('cy', String(92 + vy0 * u + grav * u * u * 0.5));
+      c.setAttribute('cx', String(xy[0] + vx * u));
+      c.setAttribute('cy', String(xy[1] + vy0 * u + grav * u * u * 0.5));
       c.setAttribute('opacity', String(Math.max(0, 1 - u * 0.75)));
-      mark.setAttribute('y', String(86 - u * 10));
+      mark.setAttribute('y', String(xy[1] - 6 - u * 10));
       mark.setAttribute('opacity', String(Math.max(0, 1 - u * 1.4)));
       if (u < 0.9) {
         requestAnimationFrame(frame);
@@ -350,7 +376,7 @@ export function playDiamondBeat(
     setPads(next);
     return Promise.resolve();
   }
-  const { moves, outAnim } = inferMoves(prev, next, ev);
+  const { moves, outAnim, outAt } = inferMoves(prev, next, ev);
   const leg = Math.max(90, Math.round(220 / speedMul));
 
   // Clear leaving pads while runners travel; light destinations after
@@ -365,7 +391,7 @@ export function playDiamondBeat(
     });
   }
   if (outAnim && !reduceMotion) {
-    return animateOut().then(() => {
+    return animateOut(outAt ?? 0).then(() => {
       setPads(next);
     });
   }

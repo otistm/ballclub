@@ -382,6 +382,8 @@ export interface Team {
   seasonHigh: Record<string, number>;
   devPool: number;
   scoutFocus: Position | null;
+  /** Per-club finished scouting files (player id → 1). Keeps fog private between GMs. */
+  scoutFiles?: Record<string, number>;
   rotIdx?: number;
   attBonus?: number;
   devBonus?: number;
@@ -397,10 +399,15 @@ export interface Team {
   pendingTrade?: { rivalId: string; give: string[]; get: string[] } | null;
   /** offer from another human GM waiting on this desk */
   inboxTrade?: { fromId: string; give: string[]; get: string[] } | null;
-  /** optional batting order override (player ids); null/empty = auto */
+  /** optional batting order override (player ids); null/empty = auto from field */
   lineupIds?: string[] | null;
   /** optional SP order override; null/empty = auto */
   rotationIds?: string[] | null;
+  /**
+   * Defensive / DH assignments — one unique player id per HIT_POS.
+   * Games are blocked for humans until every slot is filled.
+   */
+  fieldIds?: Partial<Record<Position, string>> | null;
   /** GM progression; optional so older saves hydrate via ensureProgress() */
   progress?: TeamProgress;
 }

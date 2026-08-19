@@ -3,6 +3,7 @@ import { CLASSES } from './data/classes.js';
 import { PIT_POS, ROSTER_MAX } from './data/positions.js';
 import { shownOvr } from './player.js';
 import { noteOffice } from './progress.js';
+import { autoAssignField, fieldComplete } from './lineup.js';
 import type { DraftSlot, League, Player, Position, Team } from './types.js';
 
 export const DRAFT_WANT: Partial<Record<Position, number>> = {
@@ -62,7 +63,7 @@ export function aiEvalDraft(team: Team, p: Player): number {
   const seen = shownOvr(p).v;
   let s = seen + (p.pot - p.ovr) * (c.mods.prospectGrowth > 1.2 ? 0.55 : 0.25);
   const b = c.bias;
-  const keys = PIT_POS.indexOf(p.pos) >= 0
+  const keys = PIT_POS.includes(p.pos as 'SP' | 'RP')
     ? (['stuff', 'ctl', 'mov', 'stam'] as const)
     : (['con', 'pow', 'eye', 'spd', 'fld'] as const);
   keys.forEach((k) => {
@@ -114,6 +115,10 @@ export function makePick(league: League, teamId: string, playerId: string): Pick
     league.phase = 'regular';
     league.freeAgents = league.freeAgents.concat(league.draftPool);
     league.draftPool = [];
+    // Seed every club's diamond; humans can rearrange before first pitch
+    league.teams.forEach((t) => {
+      if (!fieldComplete(t)) t.fieldIds = autoAssignField(t);
+    });
   }
   return { ok: true, player: p };
 }

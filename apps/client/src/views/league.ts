@@ -4,7 +4,7 @@ import {
   type Player, type Team
 } from '@ballclub/engine';
 import { esc } from '../ui/dom.js';
-import { M, ord, pctS } from '../ui/format.js';
+import { M, ord, pctS, cssColor } from '../ui/format.js';
 import { ic } from '../ui/icons.js';
 import { store } from '../app/store.js';
 import { net } from '../app/net.js';
@@ -29,7 +29,7 @@ export function viewLeague(): string {
   ranked.forEach((t, i) => {
     const gp = t.w + t.l;
     s += `<tr class="tap ${t.id === me.id ? 'me' : ''} ${i === 3 ? 'cut' : ''}" data-act="standingteam" data-id="${t.id}">
-      <td style="text-align:left"><i class="sq" style="background:${t.color}"></i></td>
+      <td style="text-align:left"><i class="sq" style="background:${cssColor(t.color)}"></i></td>
       <td>${esc(t.abbr)} <span class="faint" style="font-size:11px">${esc(t.mascot)}</span></td>
       <td>${t.w}</td><td>${t.l}</td><td>${gp ? pctS(t.w / gp) : '.000'}</td>
       <td class="${t.rf - t.ra >= 0 ? 'pos' : 'neg'}">${t.rf - t.ra > 0 ? '+' : ''}${t.rf - t.ra}</td></tr>`;

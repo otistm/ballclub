@@ -1,7 +1,7 @@
 /** Six-step onboarding: name, background, color wheel, vibe, paperwork. */
 import {
   CITIES, CLASSES, CLASS_LIST, GLYPHS, MASCOTS, ROSTER_MAX, VIBES,
-  hueColor, makeInviteCode
+  hueColor, makeInviteCode, sanitizeColor
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
 import { $, esc } from '../ui/dom.js';
@@ -94,7 +94,7 @@ export const OB = {
         <div class="panel">` +
         seats.map((t) =>
           `<button class="classcard${OB.claimId === t.id ? ' on' : ''}" data-ob="claim" data-k="${t.id}" style="width:100%;text-align:left;margin-bottom:8px">
-            <div class="cc-top"><div class="cc-ic" style="background:${t.color}">${mark(t.glyph, t.color)}</div>
+            <div class="cc-top"><div class="cc-ic" style="background:${sanitizeColor(t.color)}">${mark(t.glyph, t.color)}</div>
             <div style="flex:1"><div class="cc-tag">${esc(t.cls)}</div><h3 style="margin-top:2px">${esc(t.name)}</h3>
             <div class="faint" style="font-size:12px">${t.w}-${t.l} · ${esc(t.city)}</div></div></div></button>`
         ).join('') + `</div>`;

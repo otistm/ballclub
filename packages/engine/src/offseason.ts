@@ -178,12 +178,16 @@ export function resign(
     league.freeAgents.push(p);
     return { ok: false, err: 'He turned it down and hit the market', lost: true };
   }
-  p.salary = offer;
+  const capped = clamp(Math.round(offer), Math.round(ask * 0.9), Math.round(ask * 2.5));
+  if (team.cash < capped * 0.15) {
+    return { ok: false, err: 'Not enough cash to underwrite that deal' };
+  }
+  p.salary = capped;
   const term = years != null ? clamp(Math.round(years), 1, 4) : RI(mulberry32(hashStr(p.id)), 2, 4);
   p.years = term;
   p.expiring = false;
   p.morale = clamp(p.morale + 6, 20, 100);
-  return { ok: true, salary: offer };
+  return { ok: true, salary: capped };
 }
 
 export function aiOffseason(league: League): void {

@@ -5,6 +5,7 @@
  */
 import type { GameSummary, MyPbp, PbpEvent, Team } from '@ballclub/engine';
 import { $, esc } from '../ui/dom.js';
+import { cssColor } from '../ui/format.js';
 import { haptic, reduceMotion } from '../ui/ux.js';
 import anime from '../ui/motion.js';
 import { ensureDiamond, playDiamondBeat, resetDiamond, setOffenseColor, setPads } from '../ui/diamond.js';
@@ -30,6 +31,8 @@ const SPEEDS = [1, 2, 4] as const;
 
 let running = false;
 let timer: ReturnType<typeof setTimeout> | null = null;
+/** Bumps on skip/finish so in-flight paintBoard.then callbacks bail out. */
+let beatGen = 0;
 let speedIdx = 0;
 let highlights = false;
 let gi = 0;
@@ -53,6 +56,7 @@ function stopTimer(): void {
 function finish(): void {
   if (!running) return;
   running = false;
+  beatGen++;
   stopTimer();
   resetDiamond();
   const el = $('#broadcast');
@@ -99,7 +103,7 @@ function paintBoard(card: Card, ev?: PbpEvent): Promise<void> {
   $('#bc-match').textContent = 'GAME ' + card.n + ' OF ' + card.of;
 
   const side = (t: Team, runs: number, which: 'away' | 'home'): string =>
-    `<div class="nm${t.id === me ? ' me' : ''}" style="color:${esc(t.color)}">${esc(t.abbr)}</div>
+    `<div class="nm${t.id === me ? ' me' : ''}" style="color:${cssColor(t.color)}">${esc(t.abbr)}</div>
      <div class="sc">${runs}</div>
      <div class="who">${which === 'away' ? 'AWAY' : 'HOME'}</div>`;
 
@@ -135,7 +139,9 @@ function paintBoard(card: Card, ev?: PbpEvent): Promise<void> {
       setPads(bases);
     });
 
+  const myGen = beatGen;
   return beat.then(() => {
+    if (myGen !== beatGen || !running) return;
     lastBases = bases.slice();
   });
 }
@@ -172,7 +178,7 @@ function pushFeed(ev: PbpEvent, card: Card): void {
   row.className = 'bc-row' + (ev.big ? ' big' : '');
   row.innerHTML =
     `<span class="inn">${ev.half ? '▼' : '▲'}${ev.inn}</span>` +
-    `<span class="x" style="color:${esc(color)}">${esc(ev.txt)}</span>`;
+    `<span class="x" style="color:${cssColor(color)}">${esc(ev.txt)}</span>`;
   feed.prepend(row);
   while (feed.children.length > 7) feed.lastElementChild?.remove();
 }
@@ -261,8 +267,9 @@ function step(): void {
       react(ev, lastScore);
       lastScore = nextScore;
       const wait = Math.max(delayFor(ev), reduceMotion ? 0 : 200);
+      const myGen = beatGen;
       void paintBoard(card, ev).then(() => {
-        if (!running) return;
+        if (!running || myGen !== beatGen) return;
         timer = setTimeout(step, wait);
       });
       return;
@@ -325,6 +332,7 @@ export function skipBroadcast(): void {
 
 export function skipBroadcastGame(): void {
   if (!running) return;
+  beatGen++;
   stopTimer();
   resetDiamond();
   const card = cards[gi];

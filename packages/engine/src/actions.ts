@@ -22,8 +22,12 @@ import { blankProgress, noteOffice, spendSkill } from './progress.js';
 import { runAdvanceIdle, type IdleReport } from './idle.js';
 import { hireStaff, type HireStaffResult, type StaffRole } from './staff.js';
 import { CLASSES } from './data/classes.js';
-import { ROSTER_MAX } from './data/positions.js';
+import { HIT_POS, ROSTER_MAX } from './data/positions.js';
 import { clamp } from './rng.js';
+import { sanitizeColor } from './format.js';
+import {
+  autoAssignField, fieldComplete, isHitter, rosterReady, scrubTeamAssignments
+} from './lineup.js';
 
 export type GameAction =
   | { t: 'scenario'; teamId: string; side: 'left' | 'right' }
@@ -43,6 +47,8 @@ export type GameAction =
   | { t: 'hireStaff'; teamId: string; role: StaffRole }
   | { t: 'setLineup'; teamId: string; ids: string[] }
   | { t: 'setRotation'; teamId: string; ids: string[] }
+  | { t: 'setField'; teamId: string; pos: Position; playerId: string | null }
+  | { t: 'setFieldAuto'; teamId: string }
   | { t: 'setHook'; teamId: string; bullpenHook: number }
   | { t: 'setStrategy'; teamId: string; patience: number; aggression: number; bullpenHook: number }
   | { t: 'clearPendingTrade'; teamId: string }
@@ -101,6 +107,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
     case 'scenario': {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
+      if (!team.deskPending) return { ok: false, err: 'No matter on the desk' };
       const r = resolveScenario(league, team, action.side);
       team.deskPending = false;
       return { ok: true, scenario: r };
@@ -110,6 +117,10 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       if (league.phase !== 'regular') return { ok: false, err: 'Not in season' };
       if (league.teams.some((t) => t.isHuman && t.deskPending)) {
         return { ok: false, err: 'There is a matter on the desk' };
+      }
+      const unready = league.teams.find((t) => t.isHuman && !rosterReady(t));
+      if (unready) {
+        return { ok: false, err: unready.abbr + ' still need a full field' };
       }
       const out = playWeek(league);
       if ('done' in out && out.done) return { ok: false, err: 'Season is over' };
@@ -183,6 +194,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
       const r = release(league, team, action.playerId);
+      if (r.ok) scrubTeamAssignments(team);
       return { ok: r.ok, released: r };
     }
 
@@ -192,10 +204,14 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       const pool = league.draftPool.length ? league.draftPool : league.freeAgents;
       const p = pool.find((x) => x.id === action.playerId);
       if (!p) return { ok: false, err: 'No such player' };
-      if (p.scouted >= 1) return { ok: false, err: 'That file is finished' };
+      if (!team.scoutFiles) team.scoutFiles = {};
+      if ((team.scoutFiles[p.id] || 0) >= 1 || p.scouted >= 1) {
+        return { ok: false, err: 'That file is finished' };
+      }
       if (team.ap < 1) return { ok: false, err: 'Out of actions' };
       team.ap -= 1;
-      p.scouted = 1;
+      team.scoutFiles[p.id] = 1;
+      p.scouted = Math.max(p.scouted, 0.4);
       noteOffice(team, 'scouts', 12, 'Scouting');
       return { ok: true };
     }
@@ -231,8 +247,8 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
     case 'setPrices': {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
-      team.ticket = Math.round(action.ticket);
-      team.conPrice = Math.round(action.conPrice);
+      team.ticket = clamp(Math.round(action.ticket), 1, 75);
+      team.conPrice = clamp(Math.round(action.conPrice), 1, 40);
       return { ok: true };
     }
 
@@ -281,7 +297,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
       const r = resign(league, team, action.playerId, 0);
-      return { ok: true, resigned: r };
+      return { ok: !!r.ok || !!r.lost, err: r.err, resigned: r };
     }
 
     case 'setLineup': {
@@ -291,8 +307,18 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
         team.lineupIds = null;
         return { ok: true };
       }
-      const ids = action.ids.filter((id) => team.roster.some((p) => p.id === id));
-      if (ids.length < 9) return { ok: false, err: 'Need nine names' };
+      if (!fieldComplete(team)) {
+        return { ok: false, err: 'Set the field before locking a batting order' };
+      }
+      const fieldSet = new Set(HIT_POS.map((pos) => team.fieldIds![pos]!));
+      const seen = new Set<string>();
+      const ids: string[] = [];
+      for (const id of action.ids) {
+        if (seen.has(id) || !fieldSet.has(id)) continue;
+        seen.add(id);
+        ids.push(id);
+      }
+      if (ids.length < 9) return { ok: false, err: 'Batting order must use your nine fielders' };
       team.lineupIds = ids.slice(0, 9);
       return { ok: true };
     }
@@ -305,6 +331,41 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
         return p && p.pos === 'SP';
       });
       team.rotationIds = ids.length ? ids : null;
+      return { ok: true };
+    }
+
+    case 'setField': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      if (!(HIT_POS as readonly string[]).includes(action.pos)) return { ok: false, err: 'Bad position' };
+      const slot = action.pos as (typeof HIT_POS)[number];
+      if (!team.fieldIds) team.fieldIds = {};
+      if (action.playerId == null) {
+        delete team.fieldIds[slot];
+        team.lineupIds = null;
+        return { ok: true };
+      }
+      const p = team.roster.find((x) => x.id === action.playerId);
+      if (!p) return { ok: false, err: 'No such player' };
+      if (!isHitter(p)) return { ok: false, err: 'Pitchers stay in the arms list' };
+      if (p.injured) return { ok: false, err: 'He is on the shelf' };
+      // One player, one spot
+      HIT_POS.forEach((pos) => {
+        if (team.fieldIds![pos] === action.playerId) delete team.fieldIds![pos];
+      });
+      team.fieldIds[slot] = action.playerId;
+      team.lineupIds = null;
+      return { ok: true };
+    }
+
+    case 'setFieldAuto': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      team.fieldIds = autoAssignField(team);
+      team.lineupIds = null;
+      if (!fieldComplete(team)) {
+        return { ok: false, err: 'Need nine healthy hitters to fill the field' };
+      }
       return { ok: true };
     }
 
@@ -352,6 +413,10 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       // inbox.give = players leaving the offerer (from); inbox.get = players leaving the receiver (team)
       const theirOut = from.roster.filter((p) => inbox.give.indexOf(p.id) >= 0);
       const myOut = team.roster.filter((p) => inbox.get.indexOf(p.id) >= 0);
+      if (theirOut.length !== inbox.give.length || myOut.length !== inbox.get.length) {
+        team.inboxTrade = null;
+        return { ok: false, err: 'The pieces have moved' };
+      }
       if (from.roster.length - theirOut.length + myOut.length > ROSTER_MAX) {
         return { ok: false, err: 'That deal puts them over ' + ROSTER_MAX };
       }
@@ -374,7 +439,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       team.city = h.city;
       team.mascot = h.mascot;
       team.cls = h.cls;
-      team.color = h.color;
+      team.color = sanitizeColor(h.color);
       team.glyph = h.glyph;
       team.vibe = h.vibe;
       team.staff = { ...CLASSES[h.cls].staff };
@@ -382,6 +447,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       team.abbr = (h.city.replace(/[^A-Za-z]/g, '').slice(0, 2) + h.mascot.slice(0, 1)).toUpperCase();
       if (!team.progress) team.progress = blankProgress();
       if (league.phase === 'regular') team.deskPending = true;
+      if (!fieldComplete(team)) team.fieldIds = autoAssignField(team);
       rollSponsorOffers(league, team);
       league.log.push({
         w: league.week + 1, t: team.id,
@@ -392,7 +458,10 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
 
     case 'advanceIdle': {
       if (!action.idleTeamIds.length) return { ok: false, err: 'Nobody is idle' };
-      const idle = runAdvanceIdle(league, action.idleTeamIds);
+      const humans = league.teams.filter((t) => t.isHuman).map((t) => t.id);
+      const ids = action.idleTeamIds.filter((id, i, arr) => humans.indexOf(id) >= 0 && arr.indexOf(id) === i);
+      if (!ids.length) return { ok: false, err: 'Nobody is idle' };
+      const idle = runAdvanceIdle(league, ids);
       return { ok: true, idle };
     }
   }

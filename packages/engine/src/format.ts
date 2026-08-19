@@ -1,5 +1,12 @@
 import type { Player } from './types.js';
 
+/** Safe #RGB / #RRGGBB for CSS — rejects attribute-breakout payloads. */
+export function sanitizeColor(raw: string, fallback = '#888888'): string {
+  const s = String(raw || '').trim();
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(s)) return s;
+  return fallback;
+}
+
 export function fmtMoney(n: number): string {
   const a = Math.abs(n);
   const s = n < 0 ? '-' : '';

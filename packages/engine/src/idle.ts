@@ -12,6 +12,7 @@ import {
   autoDraftUntilHuman, rosterGaps, type AutoPick, type PickResult
 } from './draft.js';
 import { isPitcher, value } from './player.js';
+import { autoAssignField, fieldComplete, rosterReady } from './lineup.js';
 import { SKILLS, spendSkill } from './progress.js';
 import { hashStr, mulberry32 } from './rng.js';
 import { nextScenario, resolveScenario, type ScenarioResolution } from './scenarios.js';
@@ -219,12 +220,14 @@ function idleOffice(league: League, team: Team): number {
 
   if (team.ap >= 1 && (team.cls === 'ANALYST' || team.cls === 'FARMER' || c.mods.scoutSpeed >= 1.3)) {
     const pool = league.draftPool.length ? league.draftPool : league.freeAgents;
+    if (!team.scoutFiles) team.scoutFiles = {};
     const target = pool
-      .filter((p) => p.scouted < 1)
+      .filter((p) => (team.scoutFiles![p.id] || 0) < 1 && p.scouted < 1)
       .sort((a, b) => (team.scoutFocus && a.pos === team.scoutFocus ? 0 : 1) - (team.scoutFocus && b.pos === team.scoutFocus ? 0 : 1) || b.pot - a.pot)[0];
     if (target) {
       team.ap -= 1;
-      target.scouted = 1;
+      team.scoutFiles[target.id] = 1;
+      target.scouted = Math.max(target.scouted, 0.4);
       n++;
     }
   }
@@ -285,6 +288,7 @@ function idleResign(league: League, team: Team): number {
 function stepWeek(league: League): WeekOutcome | null {
   if (league.phase !== 'regular') return null;
   if (league.teams.some((t) => t.isHuman && t.deskPending)) return null;
+  if (league.teams.some((t) => t.isHuman && !rosterReady(t))) return null;
   const out = playWeek(league);
   if ('done' in out && out.done) return null;
   league.teams.forEach((t) => {
@@ -337,6 +341,12 @@ export function runAdvanceIdle(league: League, idleTeamIds: readonly string[]): 
   });
 
   if (!allIdle(league, idle)) return report;
+
+  // Idle clubs auto-patch the diamond (injuries / empty seats) before the week turns
+  humans(league).forEach((t) => {
+    if (!idle.has(t.id)) return;
+    if (!fieldComplete(t)) t.fieldIds = autoAssignField(t);
+  });
 
   if (league.phase === 'regular') {
     const week = stepWeek(league);

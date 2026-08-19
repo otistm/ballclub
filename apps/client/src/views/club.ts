@@ -1,5 +1,5 @@
 /** Club view: readout, desk scenario deck, next series, board note, feed. */
-import { CLASSES, draftStatus, nextScenario, rankTeams, ROSTER_MAX, type League, type Team } from '@ballclub/engine';
+import { CLASSES, draftStatus, fieldComplete, fieldVacancies, nextScenario, rankTeams, ROSTER_MAX, type League, type Team } from '@ballclub/engine';
 import { esc } from '../ui/dom.js';
 import { M, pctS } from '../ui/format.js';
 import { mark } from '../ui/icons.js';
@@ -141,7 +141,14 @@ export function viewClub(): string {
       </div>`;
     }
     if (n) {
-      const blocked = pending || waiting.length > 0;
+      const fieldOk = fieldComplete(me);
+      const vac = fieldVacancies(me);
+      const blocked = pending || waiting.length > 0 || !fieldOk;
+      const btn =
+        pending ? 'Settle your desk first'
+          : waiting.length ? 'Waiting on ' + esc(waiting[0].abbr)
+            : !fieldOk ? 'Set your field first'
+              : 'Play the series';
       s += `<div class="panel">
         <div class="eyebrow">Week ${L.week + 1} of ${L.weeks} <b>${n.games}-game series</b></div>
         <div style="display:flex;align-items:center;gap:12px">
@@ -152,8 +159,8 @@ export function viewClub(): string {
             <div class="pmeta"><span>${n.opp.w}-${n.opp.l}</span><span>${esc(CLASSES[n.opp.cls].name)}</span></div>
           </div>
         </div>
-        <button class="btn primary" style="margin-top:12px" data-act="series" ${blocked ? 'disabled' : ''}>
-          ${pending ? 'Settle your desk first' : waiting.length ? 'Waiting on ' + esc(waiting[0].abbr) : 'Play the series'}</button>
+        ${!fieldOk && !pending ? `<p class="dim" style="margin-top:10px">Open spots: ${esc(vac.join(', ') || 'need an SP')}. Fill the roster diamond before first pitch.</p>` : ''}
+        <button class="btn primary" style="margin-top:12px" data-act="series" ${blocked ? 'disabled' : ''}>${btn}</button>
         <div class="faint" style="text-align:center;font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.1em">OR PULL DOWN FROM THE TOP</div>
       </div>`;
     }

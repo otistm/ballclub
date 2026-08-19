@@ -5,10 +5,10 @@
  */
 import {
   ACHIEVEMENTS, SKILL_INFO, TROPHIES, VIBES, achievementById, consumeUnlocks, draftCurrent,
-  nextScenario, rankTeams, shownOvr, type AutoPick, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
+  fieldComplete, HIT_POS, nextScenario, rankTeams, shownOvr, type AutoPick, type FieldPos, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
-import { $, closeSheet, esc, toast } from '../ui/dom.js';
+import { $, closeSheet, esc, openSheet, toast } from '../ui/dom.js';
 import { haptic, drag, longPress, reduceMotion, swallowClick, roll } from '../ui/ux.js';
 import { showScoutStamp, showTradeFax } from '../ui/marketFx.js';
 import { playLevelSequence, enqueueAchievementToast } from '../ui/progressFx.js';
@@ -21,7 +21,7 @@ import { deskWaiters } from './idle.js';
 import { UI } from './uiState.js';
 import { backdrop, marquee, applyVibe, refreshChrome } from './chrome.js';
 import { viewClub } from '../views/club.js';
-import { viewRoster, rosterGroups } from '../views/roster.js';
+import { viewRoster, rosterGroups, fieldSlotPickerHtml } from '../views/roster.js';
 import { viewMarket, boardOrder } from '../views/market.js';
 import { viewPark, projectRevenue } from '../views/park.js';
 import { viewLeague } from '../views/league.js';
@@ -151,8 +151,8 @@ function updateBadges(): void {
     else {
       const pool = L.draftPool.length ? L.draftPool : L.freeAgents;
       const focus = me.scoutFocus
-        ? pool.filter((p) => p.pos === me.scoutFocus && p.scouted < 1)
-        : pool.filter((p) => p.scouted < 1);
+        ? pool.filter((p) => p.pos === me.scoutFocus && (me.scoutFiles?.[p.id] || 0) < 1 && p.scouted < 1)
+        : pool.filter((p) => (me.scoutFiles?.[p.id] || 0) < 1 && p.scouted < 1);
       if (focus.length && me.ap > 0) marketBadge = Math.min(9, focus.length);
     }
   }
@@ -172,6 +172,7 @@ function wirePull(): void {
   const canPull = (): boolean =>
     store.league!.phase === 'regular' &&
     !store.me.deskPending &&
+    fieldComplete(store.me) &&
     !deskWaiters(store.league!, store.meId).length &&
     sc.scrollTop <= 0;
 
@@ -247,9 +248,12 @@ function wireScenarioDeck(): void {
 }
 
 function resolveScenarioUI(side: 'left' | 'right'): void {
+  if (scenarioBusy) return;
+  scenarioBusy = true;
   const me = store.me;
   const before = { cash: me.cash, trust: me.fanTrust };
   const r = store.dispatch({ t: 'scenario', teamId: me.id, side });
+  scenarioBusy = false;
   if (!r.ok || !r.scenario) {
     render();
     return;
@@ -273,6 +277,11 @@ function playSeries(): void {
   if (UI.simming || L.phase !== 'regular') return;
   if (me.deskPending) {
     toast('Not yet', 'There is a matter on your desk.', 'bulb');
+    return;
+  }
+  if (!fieldComplete(me)) {
+    toast('Not yet', 'Fill every position on the roster field.', 'bulb');
+    go('roster');
     return;
   }
   const waiting = deskWaiters(L, me.id);
@@ -321,6 +330,7 @@ function playSeries(): void {
 /** Blocks ghost clicks after a swipe from also hitting Take / Next. */
 let draftBusy = false;
 let draftBusyGen = 0;
+let scenarioBusy = false;
 
 function armDraftBusy(ms = 800): void {
   const gen = ++draftBusyGen;
@@ -429,25 +439,29 @@ function wireDraftDeck(): void {
 /* ---------- roster strategy sliders ---------- */
 function wireRosterStrategy(): void {
   const me = store.me;
-  const commit = (): void => {
+  const commit = (pat: number, agg: number, hook: number): void => {
     store.dispatch({
       t: 'setStrategy',
       teamId: me.id,
-      patience: me.strategy.patience,
-      aggression: me.strategy.aggression,
-      bullpenHook: me.strategy.bullpenHook
+      patience: pat,
+      aggression: agg,
+      bullpenHook: hook
     });
   };
   document.querySelectorAll<HTMLInputElement>('.rslider').forEach((el) => {
     el.addEventListener('input', () => {
-      const v = (+el.value) / 100;
-      if (el.dataset.strat === 'pat') me.strategy.patience = v;
-      if (el.dataset.strat === 'agg') me.strategy.aggression = v;
-      if (el.dataset.strat === 'hook') me.strategy.bullpenHook = v;
       haptic.light();
     });
     el.addEventListener('change', () => {
-      commit();
+      const root = el.closest('#roster-strat') || document;
+      const pat = root.querySelector<HTMLInputElement>('.rslider[data-strat="pat"]');
+      const agg = root.querySelector<HTMLInputElement>('.rslider[data-strat="agg"]');
+      const hook = root.querySelector<HTMLInputElement>('.rslider[data-strat="hook"]');
+      commit(
+        pat ? (+pat.value) / 100 : me.strategy.patience,
+        agg ? (+agg.value) / 100 : me.strategy.aggression,
+        hook ? (+hook.value) / 100 : me.strategy.bullpenHook
+      );
       render();
     });
   });
@@ -458,7 +472,7 @@ function wireRosterSort(): void {
   const root = document.querySelector('#roster-sort') as HTMLElement | null;
   if (!root) return;
   const mode = root.dataset.mode;
-  if (mode !== 'lineup' && mode !== 'rotation') return;
+  if (mode !== 'rotation' && mode !== 'lineup') return;
   const wraps = Array.from(root.querySelectorAll<HTMLElement>('.prow-wrap[data-sortable]'));
   if (wraps.length < 2) return;
 
@@ -638,7 +652,7 @@ function wireLongPress(): void {
       if (!id) return;
       const p = me.roster.find((x) => x.id === id) || L.draftPool.find((x) => x.id === id) || L.freeAgents.find((x) => x.id === id);
       if (!p) return;
-      const so = shownOvr(p, meFog());
+      const so = shownOvr(p, meFog(), store.me);
       toast(
         p.pos + ' · ' + p.age + 'y',
         `${so.exact ? so.v + ' ovr' : so.lo + '-' + so.hi + ' est'} · ${M(p.salary)} · cond ${Math.round(p.cond)}%`,
@@ -773,11 +787,11 @@ function doScout(id: string): void {
   const pool = L.draftPool.length ? L.draftPool : L.freeAgents;
   const p = pool.find((x) => x.id === id);
   if (!p) return;
-  if (p.scouted >= 1) {
+  if ((store.me.scoutFiles?.[p.id] || 0) >= 1 || p.scouted >= 1) {
     toast('Already known', 'That file is finished.', '');
     return;
   }
-  const before = shownOvr(p, meFog());
+  const before = shownOvr(p, meFog(), store.me);
   const r = store.dispatch({ t: 'scout', teamId: store.me.id, playerId: id });
   if (!r.ok) {
     haptic.warn();
@@ -844,17 +858,75 @@ export function handle(act: string, d: DOMStringMap): void {
       render();
       break;
     case 'lu-lock': {
+      if (!fieldComplete(me)) {
+        toast('Not yet', 'Fill the field before locking a batting order.', 'bulb');
+        break;
+      }
       const { lu } = rosterGroups();
       const r = store.dispatch({ t: 'setLineup', teamId: me.id, ids: lu.lineup.map((p) => p.id) });
-      if (r.ok) { haptic.ok(); toast('Lineup', 'These nine are locked.', 'good'); }
-      else { haptic.warn(); toast('Not yet', r.err || 'Need nine', 'bad'); }
+      if (r.ok) {
+        haptic.ok();
+        toast('Order', 'Batting order locked.', 'good');
+      } else {
+        haptic.warn();
+        toast('Not yet', r.err || 'Cannot lock', 'bad');
+      }
       render();
       break;
     }
     case 'lu-auto':
       store.dispatch({ t: 'setLineup', teamId: me.id, ids: [] });
       haptic.tap();
-      toast('Lineup', 'Back to the auto card.', '');
+      toast('Order', 'House order from the nine.', '');
+      render();
+      break;
+    case 'fieldslot': {
+      const pos = d.pos as FieldPos;
+      if (!pos) break;
+      openSheet(fieldSlotPickerHtml(pos));
+      haptic.tap();
+      break;
+    }
+    case 'field-pick': {
+      const pos = d.pos as FieldPos;
+      const r = store.dispatch({ t: 'setField', teamId: me.id, pos, playerId: d.id! });
+      if (r.ok) {
+        haptic.ok();
+        closeSheet();
+        toast(pos, 'In the card.', 'good');
+      } else {
+        haptic.warn();
+        toast('Not yet', r.err || 'Cannot play there', 'bad');
+      }
+      render();
+      break;
+    }
+    case 'field-clear-slot': {
+      const pos = d.pos as FieldPos;
+      store.dispatch({ t: 'setField', teamId: me.id, pos, playerId: null });
+      haptic.tap();
+      closeSheet();
+      render();
+      break;
+    }
+    case 'field-auto': {
+      const r = store.dispatch({ t: 'setFieldAuto', teamId: me.id });
+      if (r.ok) {
+        haptic.ok();
+        toast('Field set', 'Best fits by position.', 'good');
+      } else {
+        haptic.warn();
+        toast('Not yet', r.err || 'Need more hitters', 'bad');
+      }
+      render();
+      break;
+    }
+    case 'field-clear':
+      HIT_POS.forEach((pos) => {
+        store.dispatch({ t: 'setField', teamId: me.id, pos, playerId: null });
+      });
+      haptic.tap();
+      toast('Field', 'All spots open.', '');
       render();
       break;
     case 'rot-lock': {
@@ -880,15 +952,23 @@ export function handle(act: string, d: DOMStringMap): void {
     case 'series': playSeries(); break;
     case 'fullboard': fullBoard(); break;
     case 'scchoice': {
+      if (scenarioBusy || !store.me.deskPending) break;
+      scenarioBusy = true;
       const card = document.querySelector('#sccard');
       const right = d.k === 'right';
       haptic.ok();
       if (card) {
         anime({
           targets: card, translateX: right ? 460 : -460, rotate: right ? 20 : -20, opacity: 0,
-          duration: 300, easing: 'easeInQuad', complete: () => resolveScenarioUI(d.k as 'left' | 'right')
+          duration: 300, easing: 'easeInQuad', complete: () => {
+            scenarioBusy = false;
+            resolveScenarioUI(d.k as 'left' | 'right');
+          }
         });
-      } else resolveScenarioUI(d.k as 'left' | 'right');
+      } else {
+        scenarioBusy = false;
+        resolveScenarioUI(d.k as 'left' | 'right');
+      }
       break;
     }
     case 'drpass':
@@ -914,7 +994,11 @@ export function handle(act: string, d: DOMStringMap): void {
       } else render();
       break;
     }
-    case 'draftpick': closeSheet(); doDraft(d.id!); break;
+    case 'draftpick':
+      if (draftBusy) break;
+      closeSheet();
+      doDraft(d.id!);
+      break;
     case 'rival':
       UI.trade.rival = d.k!;
       UI.trade.mine = [];

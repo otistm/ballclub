@@ -5,7 +5,7 @@ import {
   type Player, type Position
 } from '@ballclub/engine';
 import { esc } from '../ui/dom.js';
-import { M } from '../ui/format.js';
+import { M, cssColor } from '../ui/format.js';
 import { store } from '../app/store.js';
 import { UI } from '../app/uiState.js';
 import { meFog, playerRow, ratingBars } from './helpers.js';
@@ -110,7 +110,7 @@ export function viewDraft(): string {
     const wait = st.untilYou === 1 ? '1 pick until you' : st.untilYou + ' picks until you';
     s += `<div class="panel">
       <div class="eyebrow">Waiting</div>
-      <h3 style="color:${onClock.color}">${esc(onClock.name)}</h3>
+      <h3 style="color:${cssColor(onClock.color)}">${esc(onClock.name)}</h3>
       <p class="dim" style="margin-top:6px">${esc(wait)}. They pick, then it comes back around.</p>
       <button class="btn primary" style="margin-top:12px" data-act="advdraft">Play the other clubs</button>
     </div>`;
@@ -124,7 +124,7 @@ export function viewDraft(): string {
       <div class="deck" id="drdeck">`;
     stack.slice().reverse().forEach((p, ri) => {
       const i = stack.length - 1 - ri;
-      const so = shownOvr(p, meFog());
+      const so = shownOvr(p, meFog(), store.me);
       const fog = so.exact ? 'FILE IN' : 'ESTIMATE';
       s += `<div class="dcard" data-di="${i}" data-id="${p.id}" style="transform:translateY(${i * 7}px) scale(${1 - i * 0.03});opacity:${i === 2 ? 0.55 : 1};z-index:${9 - i}">
         <div class="dcard-in draft">
@@ -150,7 +150,7 @@ export function viewDraft(): string {
     });
     s += `</div>
       <div class="btn-row">`;
-    if (top && top.scouted < 1) {
+    if (top && (me.scoutFiles?.[top.id] || 0) < 1 && top.scouted < 1) {
       s += `<button class="btn ghost sm" data-act="scoutone" data-id="${top.id}" ${me.ap < 1 ? 'disabled' : ''}>Scout this file · 1 action</button>`;
     }
     s += `<button class="btn ghost sm" data-act="fullboard">All remaining names</button>
@@ -290,8 +290,8 @@ export function viewScout(): string {
   const L = store.league!;
   const me = store.me;
   const pool = L.draftPool.length ? L.draftPool : L.freeAgents;
-  const unscouted = pool.filter((p) => p.scouted < 1).sort((a, b) => b.scouted - a.scouted).slice(0, 24);
-  const closing = pool.filter((p) => p.scouted >= 0.55 && p.scouted < 1).length;
+  const unscouted = pool.filter((p) => (me.scoutFiles?.[p.id] || 0) < 1 && p.scouted < 1).sort((a, b) => b.scouted - a.scouted).slice(0, 24);
+  const closing = pool.filter((p) => p.scouted >= 0.55 && p.scouted < 1 && (me.scoutFiles?.[p.id] || 0) < 1).length;
   const positions: Position[] = ['SP', 'RP', 'C', 'SS', 'CF', '1B', '2B', '3B', 'LF', 'RF', 'DH'];
   let s = `<div class="panel">
     <div class="eyebrow">Scouting department</div>
@@ -308,7 +308,7 @@ export function viewScout(): string {
   s += `<div class="eyebrow">Open files <b>${unscouted.length}</b></div><div class="panel" style="padding-top:4px">`;
   if (!unscouted.length) s += `<div class="empty"><h3>All clear</h3><p>Every name on the list has a finished report.</p></div>`;
   unscouted.forEach((p) => {
-    const so = shownOvr(p, meFog());
+    const so = shownOvr(p, meFog(), store.me);
     s += `<div class="prow" data-act="player" data-id="${p.id}">
       <div class="ppos${isPitcher(p) ? ' p' : ''}">${p.pos}</div>
       <div class="pinfo"><div class="pname">${esc(p.name)}</div>
