@@ -649,7 +649,6 @@ h3{font-size:16px}
   font-family:var(--dsp);font-size:22px;letter-spacing:.04em;line-height:1;
   color:var(--chalk-dim)
 }
-.bc-side .nm.me{color:var(--team)}
 .bc-side .sc{
   font-family:var(--dsp);font-size:42px;line-height:.9;color:var(--chalk);
   text-shadow:0 0 18px rgba(255,180,60,.25)
@@ -673,13 +672,14 @@ h3{font-size:16px}
   transition:fill .28s
 }
 #bc-diamond .basepad.occ{
-  fill:var(--bulb);filter:drop-shadow(0 0 7px rgba(255,180,60,.85))
+  /* fill set inline to batting-team color */
+  transition:fill .28s
 }
 #bc-diamond .runner{
-  fill:var(--chalk);stroke:var(--bulb);stroke-width:1.2;
-  filter:drop-shadow(0 0 4px rgba(255,180,60,.8));pointer-events:none
+  stroke-width:1.2;pointer-events:none
+  /* fill/stroke/filter set inline to batting-team color */
 }
-#bc-diamond .runner.dead{fill:var(--rust);stroke:#2a100c}
+#bc-diamond .runner.dead{/* fill set inline */}
 #bc-diamond .runner.score{
   animation:bc-scorepop .26s ease-out forwards;
   transform-box:fill-box;transform-origin:center
@@ -723,7 +723,7 @@ h3{font-size:16px}
 }
 .bc-row .inn{flex:0 0 28px;font-size:9px;color:var(--chalk-faint)}
 .bc-row .x{flex:1}
-.bc-row.big .x{color:var(--bulb)}
+.bc-row.big .x{font-weight:700;text-shadow:0 0 12px currentColor}
 #bc-bar{
   flex:0 0 auto;display:flex;gap:6px;padding:10px 12px calc(var(--safe-b) + 12px);
   border-top:1px solid var(--line)

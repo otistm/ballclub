@@ -24,6 +24,20 @@ export function viewLeague(): string {
   const prog = me.progress;
   let s = '';
 
+  s += `<div class="eyebrow">Standings <b>top four make it</b></div><div class="panel">
+    <table class="stand"><thead><tr><th></th><th>Club</th><th>W</th><th>L</th><th>PCT</th><th>DIFF</th></tr></thead><tbody>`;
+  ranked.forEach((t, i) => {
+    const gp = t.w + t.l;
+    s += `<tr class="tap ${t.id === me.id ? 'me' : ''} ${i === 3 ? 'cut' : ''}" data-act="standingteam" data-id="${t.id}">
+      <td style="text-align:left"><i class="sq" style="background:${t.color}"></i></td>
+      <td>${esc(t.abbr)} <span class="faint" style="font-size:11px">${esc(t.mascot)}</span></td>
+      <td>${t.w}</td><td>${t.l}</td><td>${gp ? pctS(t.w / gp) : '.000'}</td>
+      <td class="${t.rf - t.ra >= 0 ? 'pos' : 'neg'}">${t.rf - t.ra > 0 ? '+' : ''}${t.rf - t.ra}</td></tr>`;
+  });
+  s += `</tbody></table>
+    <p class="faint" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.08em">TAP A CLUB FOR THE TAPE</p>
+  </div>`;
+
   s += `<div class="eyebrow">The office <b>GM ${prog?.level || 1}</b></div>
     <div class="panel office">
       ${xpBarHtml(me)}
@@ -108,20 +122,6 @@ export function viewLeague(): string {
     </div>`;
   });
   s += `</div>`;
-
-  s += `<div class="eyebrow">Standings <b>top four make it</b></div><div class="panel">
-    <table class="stand"><thead><tr><th></th><th>Club</th><th>W</th><th>L</th><th>PCT</th><th>DIFF</th></tr></thead><tbody>`;
-  ranked.forEach((t, i) => {
-    const gp = t.w + t.l;
-    s += `<tr class="tap ${t.id === me.id ? 'me' : ''} ${i === 3 ? 'cut' : ''}" data-act="standingteam" data-id="${t.id}">
-      <td style="text-align:left"><i class="sq" style="background:${t.color}"></i></td>
-      <td>${esc(t.abbr)} <span class="faint" style="font-size:11px">${esc(t.mascot)}</span></td>
-      <td>${t.w}</td><td>${t.l}</td><td>${gp ? pctS(t.w / gp) : '.000'}</td>
-      <td class="${t.rf - t.ra >= 0 ? 'pos' : 'neg'}">${t.rf - t.ra > 0 ? '+' : ''}${t.rf - t.ra}</td></tr>`;
-  });
-  s += `</tbody></table>
-    <p class="faint" style="font-size:11px;margin-top:8px;font-family:var(--mono);letter-spacing:.08em">TAP A CLUB FOR THE TAPE</p>
-  </div>`;
 
   /* leaders */
   const all: { p: Player; t: Team }[] = [];

@@ -7,7 +7,7 @@ import type { GameSummary, MyPbp, PbpEvent, Team } from '@ballclub/engine';
 import { $, esc } from '../ui/dom.js';
 import { haptic, reduceMotion } from '../ui/ux.js';
 import anime from '../ui/motion.js';
-import { ensureDiamond, playDiamondBeat, resetDiamond, setPads } from '../ui/diamond.js';
+import { ensureDiamond, playDiamondBeat, resetDiamond, setOffenseColor, setPads } from '../ui/diamond.js';
 import { backdrop, marquee } from '../app/chrome.js';
 import { store } from '../app/store.js';
 
@@ -99,13 +99,16 @@ function paintBoard(card: Card, ev?: PbpEvent): Promise<void> {
   $('#bc-match').textContent = 'GAME ' + card.n + ' OF ' + card.of;
 
   const side = (t: Team, runs: number, which: 'away' | 'home'): string =>
-    `<div class="nm ${t.id === me ? 'me' : ''}">${esc(t.abbr)}</div>
+    `<div class="nm${t.id === me ? ' me' : ''}" style="color:${esc(t.color)}">${esc(t.abbr)}</div>
      <div class="sc">${runs}</div>
      <div class="who">${which === 'away' ? 'AWAY' : 'HOME'}</div>`;
 
   $('#bc-away').innerHTML = side(card.away, away, 'away');
   $('#bc-home').innerHTML = side(card.home, home, 'home');
   $('#bc-inn').innerHTML = `<span class="arr">${half ? '▼' : '▲'}</span><span class="n">${inn}</span>`;
+
+  const batting = Number(half) ? card.home : card.away;
+  setOffenseColor(batting.color);
 
   document.querySelectorAll('#bc-outs i').forEach((el, i) => {
     const on = i < Math.min(3, outs);
@@ -158,12 +161,18 @@ function paintCall(ev: PbpEvent): void {
   }
 }
 
-function pushFeed(ev: PbpEvent): void {
+function pushFeed(ev: PbpEvent, card: Card): void {
   if (ev.t === 'half') return;
+  // At-bat / runner lines are the offense; pitching changes are the defense.
+  const off = Number(ev.half) ? card.home : card.away;
+  const def = Number(ev.half) ? card.away : card.home;
+  const color = ev.t === 'sub' ? def.color : off.color;
   const feed = $('#bc-feed');
   const row = document.createElement('div');
   row.className = 'bc-row' + (ev.big ? ' big' : '');
-  row.innerHTML = `<span class="inn">${ev.half ? '▼' : '▲'}${ev.inn}</span><span class="x">${esc(ev.txt)}</span>`;
+  row.innerHTML =
+    `<span class="inn">${ev.half ? '▼' : '▲'}${ev.inn}</span>` +
+    `<span class="x" style="color:${esc(color)}">${esc(ev.txt)}</span>`;
   feed.prepend(row);
   while (feed.children.length > 7) feed.lastElementChild?.remove();
 }
@@ -248,7 +257,7 @@ function step(): void {
         continue;
       }
       paintCall(ev);
-      pushFeed(ev);
+      pushFeed(ev, card);
       react(ev, lastScore);
       lastScore = nextScore;
       const wait = Math.max(delayFor(ev), reduceMotion ? 0 : 200);

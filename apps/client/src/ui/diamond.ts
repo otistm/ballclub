@@ -21,6 +21,7 @@ export interface RunnerMove {
 
 let gen = 0;
 let mounted = false;
+let offenseColor = '#E9EEE7';
 
 function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement {
   const e = document.createElementNS('http://www.w3.org/2000/svg', tag);
@@ -30,6 +31,32 @@ function svgEl(tag: string, attrs: Record<string, string | number>): SVGElement 
 
 function root(): SVGSVGElement | null {
   return document.querySelector('#bc-diamond-svg');
+}
+
+function paintRunner(el: SVGElement, dead = false): void {
+  if (dead) {
+    el.style.fill = 'var(--rust, #C4553A)';
+    el.style.stroke = '#2a100c';
+    el.style.filter = 'none';
+    return;
+  }
+  el.style.fill = offenseColor;
+  el.style.stroke = '#E9EEE7';
+  el.style.filter = `drop-shadow(0 0 5px ${offenseColor})`;
+}
+
+function paintPads(): void {
+  (['bc-pad1', 'bc-pad2', 'bc-pad3'] as const).forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.classList.contains('occ')) {
+      el.style.fill = offenseColor;
+      el.style.filter = `drop-shadow(0 0 7px ${offenseColor})`;
+    } else {
+      el.style.fill = '#081A12';
+      el.style.filter = '';
+    }
+  });
 }
 
 /** Build the SVG once inside #bc-diamond. */
@@ -79,6 +106,16 @@ export function setPads(bases: boolean[]): void {
   (['bc-pad1', 'bc-pad2', 'bc-pad3'] as const).forEach((id, i) => {
     document.getElementById(id)?.classList.toggle('occ', !!bases[i]);
   });
+  paintPads();
+}
+
+/** Tint runners / occupied pads to the batting team's color. */
+export function setOffenseColor(hex: string): void {
+  offenseColor = hex || '#E9EEE7';
+  ensureDiamond();
+  const host = document.querySelector('#bc-diamond') as HTMLElement | null;
+  if (host) host.style.setProperty('--bc-offense', offenseColor);
+  paintPads();
 }
 
 function advanceMoves(
@@ -206,6 +243,7 @@ function animateRunners(moves: RunnerMove[], leg = 220): Promise<void> {
       cx: BASE_XY[mv.from][0],
       cy: BASE_XY[mv.from][1]
     });
+    paintRunner(c);
     svg.appendChild(c);
     const t0 = performance.now() + idx * 70;
     const dur = legs.length * leg;
@@ -249,6 +287,7 @@ function animateOut(): Promise<void> {
   const my = ++gen;
   return new Promise((res) => {
     const c = svgEl('circle', { class: 'runner dead', r: 4.2, cx: 50, cy: 92 });
+    paintRunner(c, true);
     const mark = svgEl('text', {
       class: 'outmark',
       x: 50,
