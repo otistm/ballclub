@@ -48,7 +48,7 @@ export function newTeam(
     roster: [], cash: c.cash, startCash: c.cash, fanTrust: c.fanTrust,
     staff: { ...c.staff },
     stadium: { seats: 0, lights: 0, food: 0, board: 0, clubhouse: 0, academy: 0 },
-    ticket: 18, conPrice: 12,
+    ticket: 18, conPrice: 12, yardUse: 'open',
     sponsors: [], sponsorOffers: [], trophies: [], picks: [],
     w: 0, l: 0, rf: 0, ra: 0, streak: 0, rank: 1,
     wk: { att: 0, rev: 0, cost: 0, net: 0 },
@@ -92,6 +92,12 @@ export function buildSchedule(league: League, _rng: Rng): SchedulePair[][] {
     weeks.push(pairs);
   }
   return weeks;
+}
+
+/** This week's pairing for a club, or null if the season is over. */
+export function weekPair(league: League, teamId: string, week = league.week): SchedulePair | null {
+  if (week < 0 || week >= league.weeks) return null;
+  return league.schedule[week]?.find((p) => p.home === teamId || p.away === teamId) || null;
 }
 
 export function rankTeams(league: League): Team[] {

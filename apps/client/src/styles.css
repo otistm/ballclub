@@ -596,6 +596,25 @@ h3{font-size:16px}
 .vcell canvas{width:100%;height:70px;display:block}
 .vcell .lb{padding:7px 9px;font-family:var(--mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--chalk-dim)}
 .vcell.on .lb{color:var(--team)}
+
+.stand-tag{
+  display:inline-block;font-family:var(--mono);font-size:9px;letter-spacing:.16em;
+  text-transform:uppercase;padding:3px 8px;border:1px solid var(--line);border-radius:2px;
+  margin:0 0 8px
+}
+.stand-tag.home{color:var(--turf);border-color:rgba(110,170,120,.45)}
+.stand-tag.road{color:var(--bulb);border-color:rgba(255,180,60,.4)}
+.road-note{font-size:13px;line-height:1.45;color:var(--chalk-dim);margin:0}
+.yardgrid{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.ycell{
+  text-align:left;border:1px solid var(--line);border-radius:4px;padding:10px 12px;
+  background:rgba(0,0,0,.22)
+}
+.ycell.on{border-color:var(--team);background:var(--team-soft)}
+.ycell .yt{font-family:var(--dsp);font-size:16px;line-height:1.15}
+.ycell .yd{font-size:12.5px;color:var(--chalk-dim);margin-top:4px;line-height:1.4}
+.ycell .ym{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--chalk-faint);margin-top:7px;text-transform:uppercase}
+.ycell.on .ym{color:var(--team)}
 #onboard.mood #obbody{display:flex;flex-direction:column;overflow:hidden}
 #onboard.mood .vibelist{
   flex:1 1 auto;display:flex;flex-direction:column;grid-template-columns:none;

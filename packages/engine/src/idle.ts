@@ -218,6 +218,12 @@ function idleOffice(league: League, team: Team): number {
     n++;
   }
 
+  const wantYard = team.cls === 'SHOWMAN' || team.cls === 'BROKER' ? 'rent' : team.cls === 'CLOSER' ? 'lock' : 'open';
+  if ((team.yardUse || 'open') !== wantYard) {
+    team.yardUse = wantYard;
+    n++;
+  }
+
   if (team.ap >= 1 && (team.cls === 'ANALYST' || team.cls === 'FARMER' || c.mods.scoutSpeed >= 1.3)) {
     const pool = league.draftPool.length ? league.draftPool : league.freeAgents;
     if (!team.scoutFiles) team.scoutFiles = {};

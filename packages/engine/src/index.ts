@@ -24,6 +24,7 @@ export { CLASSES, CLASS_LIST } from './data/classes.js';
 export { VIBES } from './data/vibes.js';
 export { TRAITS } from './data/traits.js';
 export { STADIUM } from './data/stadium.js';
+export { YARD, YARD_LIST } from './data/yard.js';
 export { SPONSOR_POOL, sponsorCheck } from './data/sponsors.js';
 export { SCENARIOS } from './data/scenarios.js';
 export { TROPHIES } from './data/trophies.js';

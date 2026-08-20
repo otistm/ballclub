@@ -100,7 +100,7 @@ function paintBoard(card: Card, ev?: PbpEvent): Promise<void> {
   const prevAway = Number(($('#bc-away .sc') as HTMLElement | null)?.textContent || 0);
   const prevHome = Number(($('#bc-home .sc') as HTMLElement | null)?.textContent || 0);
 
-  $('#bc-match').textContent = 'GAME ' + card.n + ' OF ' + card.of;
+  $('#bc-match').textContent = 'GAME ' + card.n + ' OF ' + card.of + '  ·  ' + (card.home.id === me ? 'HOME' : 'AWAY');
 
   const side = (t: Team, runs: number, which: 'away' | 'home'): string =>
     `<div class="nm${t.id === me ? ' me' : ''}" style="color:${cssColor(t.color)}">${esc(t.abbr)}</div>

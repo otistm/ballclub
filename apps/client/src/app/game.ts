@@ -1199,6 +1199,11 @@ export function handle(act: string, d: DOMStringMap): void {
       render();
       break;
     }
+    case 'yard':
+      store.dispatch({ t: 'setYard', teamId: me.id, use: d.k as 'lock' | 'open' | 'rent' });
+      haptic.select();
+      render();
+      break;
     case 'playoffs': runPlayoffsUI(); break;
     case 'offseason': openOffseason(); break;
     case 'opendraft': {

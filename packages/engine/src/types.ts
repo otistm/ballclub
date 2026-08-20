@@ -136,6 +136,9 @@ export interface StadiumLevel {
 
 export type StadiumKey = 'seats' | 'lights' | 'food' | 'board' | 'clubhouse' | 'academy';
 
+/** What the ballpark does while the club is on the road. */
+export type YardUse = 'lock' | 'open' | 'rent';
+
 export interface StadiumSpec {
   key: StadiumKey;
   name: string;
@@ -332,6 +335,12 @@ export interface WeekFinance {
   payroll?: number;
   sellout?: boolean;
   luxury?: number;
+  /** true when this club hosted the series */
+  home?: boolean;
+  /** non-game park take while the club is away */
+  yard?: number;
+  yardUse?: YardUse;
+  yardAtt?: number;
 }
 
 export interface TeamHistory {
@@ -364,6 +373,8 @@ export interface Team {
   stadium: Record<StadiumKey, number>;
   ticket: number;
   conPrice: number;
+  /** How the yard is used on the road. Defaults to open tours. */
+  yardUse?: YardUse;
   sponsors: SponsorDeal[];
   sponsorOffers: SponsorOffer[];
   trophies: TrophyWon[];

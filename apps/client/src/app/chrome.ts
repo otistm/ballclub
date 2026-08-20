@@ -1,5 +1,5 @@
 /** App chrome: WebGL backdrop, scoreboard marquee, theme color, AP dots. */
-import { VIBES, draftStatus, stadiumVal } from '@ballclub/engine';
+import { VIBES, draftStatus, stadiumVal, weekPair } from '@ballclub/engine';
 import { Backdrop, createMarquee, type MarqueeApi } from '../ui/gl.js';
 import { g } from '../ui/icons.js';
 import { $ } from '../ui/dom.js';
@@ -29,7 +29,7 @@ export function applyVibe(): void {
   if (!backdrop.ok) return;
   backdrop.setVibe(VIBES[me.vibe] || VIBES.NIGHT, hexToRgb(me.color));
   const cap = stadiumVal(me, 'seats', 'cap', 9000);
-  const att = me.wk?.att || 0;
+  const att = me.wk?.home === false ? (me.wk.yardAtt || 0) : (me.wk?.att || 0);
   backdrop.setPark({
     lights: me.stadium?.lights || 0,
     board: me.stadium?.board || 0,
@@ -58,6 +58,8 @@ function marqueePages(): string[] {
     p.push('OFFSEASON · YEAR ' + L.season);
   } else {
     p.push('WEEK ' + (L.week + 1) + ' OF ' + L.weeks);
+    const pr = weekPair(L, me.id);
+    if (pr) p.push(pr.home === me.id ? 'HOMESTAND' : 'ON THE ROAD');
     p.push(me.w + '-' + me.l + '  ' + ord(me.rank));
   }
   p.push(M(me.cash));

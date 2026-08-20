@@ -1,6 +1,6 @@
 /** Bottom-sheet content: player card, full draft board, series recap, playoffs, offseason. */
 import {
-  ROSTER_MAX, STAFF_INFO, TRAITS, TROPHIES,
+  ROSTER_MAX, STAFF_INFO, TRAITS, TROPHIES, YARD,
   avg, draftCurrent, era, fmtIP, isPitcher, obp, shownOvr, slg, staffHireCost, value,
   type Bracket, type GameSummary, type MyPbp, type OffseasonReport, type PbpEvent,
   type SeasonLogHit, type SeasonLogPit, type SeriesResult, type StaffRole
@@ -145,6 +145,10 @@ export function seriesRecap(
   const losses = games.length - wins;
   const headline = wins > losses ? 'SERIES WON' : wins === losses ? 'SERIES SPLIT' : 'SERIES LOST';
   const stamp = wins > losses ? 'FILE' : wins === losses ? 'HOLD' : 'SEE BOARD';
+  const homeStand = games.length ? games[0].homeId === me.id : w.home !== false;
+  const opp = games.length
+    ? L.teams.find((t) => t.id === (homeStand ? games[0].awayId : games[0].homeId)) || null
+    : null;
 
   let s = `<div class="rcpt-sprocket" aria-hidden="true"></div>
     <div class="rcpt-ink">
@@ -153,6 +157,7 @@ export function seriesRecap(
       <div class="rcpt-meta">PRESS BOX COPY</div>
       ${rcptRow('CLUB', me.abbr)}
       ${rcptRow('YEAR ' + L.season, 'WEEK ' + week + ' OF ' + L.weeks)}
+      ${rcptRow(homeStand ? 'HOMESTAND' : 'ROAD SERIES', opp ? ((homeStand ? 'VS ' : '@ ') + opp.abbr) : '')}
       <div class="rcpt-rule"></div>
       <div class="rcpt-head">${esc(headline)}</div>
       ${rcptRow('GAMES', wins + '-' + losses)}
@@ -185,12 +190,27 @@ export function seriesRecap(
   }
 
   if (!archive) {
+    const use = w.yardUse || 'open';
     s += `<div class="rcpt-rule"></div>
-      <div class="rcpt-sec">THE GATE</div>
+      <div class="rcpt-sec">THE GATE</div>`;
+    if (homeStand) {
+      s += `
       ${rcptRow('ATTENDANCE', (w.att || 0).toLocaleString() + (w.sellout ? ' *' : ''))}
       ${rcptRow('TICKETS', M(w.gate || 0))}
       ${rcptRow('CONCESSIONS', M(w.conc || 0))}
-      ${rcptRow('MERCH', M(w.merch || 0))}
+      ${rcptRow('MERCH', M(w.merch || 0))}`;
+    } else {
+      s += `
+      ${rcptRow('TICKETS', 'HOST')}
+      ${rcptRow('CONCESSIONS', 'HOST')}
+      ${rcptRow('MERCH', 'HOST')}
+      <div class="rcpt-note">Road series. The host keeps tickets, concessions, and merch.</div>
+      <div class="rcpt-rule"></div>
+      <div class="rcpt-sec">THE YARD</div>
+      ${rcptRow(YARD[use].receipt, (w.yard || 0) > 0 ? M(w.yard || 0) : '—')}
+      ${w.yardAtt ? rcptRow('EVENT CROWD', w.yardAtt.toLocaleString()) : ''}`;
+    }
+    s += `
       ${rcptRow('SPONSORS', M(w.sponsor || 0))}
       <div class="rcpt-dots"></div>
       ${rcptRow('PAYROLL', '-' + M(w.payroll || 0))}

@@ -70,7 +70,7 @@ export function viewClub(): string {
     <div class="ro-cell"><div class="k">Record</div><div class="v">${me.w}-${me.l}</div><div class="s">${gp ? pctS(me.w / gp) : '.000'}</div></div>
     <div class="ro-cell"><div class="k">Place</div><div class="v">${rank}</div><div class="s">of 8</div></div>
     <div class="ro-cell"><div class="k">Cash</div><div class="v sm" id="cashv">${M(me.cash)}</div><div class="s ${me.wk.net >= 0 ? 'pos' : 'neg'}">${me.wk.net ? (me.wk.net > 0 ? '+' : '') + M(me.wk.net) + '/wk' : 'week 1'}</div></div>
-    <div class="ro-cell"><div class="k">Trust</div><div class="v">${Math.round(me.fanTrust)}</div><div class="s">${me.wk.att ? me.wk.att.toLocaleString() + ' seats' : 'no gate yet'}</div></div>
+    <div class="ro-cell"><div class="k">Trust</div><div class="v">${Math.round(me.fanTrust)}</div><div class="s">${me.wk.home === false ? 'on the road' : (me.wk.att ? me.wk.att.toLocaleString() + ' seats' : 'no gate yet')}</div></div>
   </div>
   ${xpBarHtml(me, true)}`;
   }
@@ -151,6 +151,7 @@ export function viewClub(): string {
               : 'Play the series';
       s += `<div class="panel">
         <div class="eyebrow">Week ${L.week + 1} of ${L.weeks} <b>${n.games}-game series</b></div>
+        <div class="stand-tag ${n.home ? 'home' : 'road'}">${n.home ? 'Homestand' : 'Road series'}</div>
         <div style="display:flex;align-items:center;gap:12px">
           ${mark(n.opp.glyph, n.opp.color)}
           <div style="flex:1">
@@ -179,7 +180,7 @@ export function viewClub(): string {
   if (last) {
     const mine = last.games.filter((gm) => gm.homeId === me.id || gm.awayId === me.id);
     if (mine.length) {
-      s += `<div class="eyebrow">Last series <b>week ${last.week}</b></div><div class="panel">`;
+      s += `<div class="eyebrow">Last series <b>week ${last.week} · ${mine[0].homeId === me.id ? 'homestand' : 'road'}</b></div><div class="panel">`;
       mine.forEach((gm) => {
         const home = gm.homeId === me.id;
         const my = home ? gm.homeRuns : gm.awayRuns, th = home ? gm.awayRuns : gm.homeRuns;

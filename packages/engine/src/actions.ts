@@ -6,7 +6,7 @@
  * leagues, server authority, and replay.
  */
 import type {
-  HumanConfig, League, Position, SkillKey, StadiumKey, WeekOutcome, Bracket, OffseasonReport
+  HumanConfig, League, Position, SkillKey, StadiumKey, WeekOutcome, Bracket, OffseasonReport, YardUse
 } from './types.js';
 import { makeLeague } from './league.js';
 import { playWeek } from './week.js';
@@ -43,6 +43,7 @@ export type GameAction =
   | { t: 'signSponsor'; teamId: string; name: string }
   | { t: 'setVibe'; teamId: string; vibe: string }
   | { t: 'setPrices'; teamId: string; ticket: number; conPrice: number }
+  | { t: 'setYard'; teamId: string; use: YardUse }
   | { t: 'spendSkill'; teamId: string; skill: SkillKey }
   | { t: 'hireStaff'; teamId: string; role: StaffRole }
   | { t: 'setLineup'; teamId: string; ids: string[] }
@@ -249,6 +250,16 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       if (!team) return { ok: false, err: 'No such club' };
       team.ticket = clamp(Math.round(action.ticket), 1, 75);
       team.conPrice = clamp(Math.round(action.conPrice), 1, 40);
+      return { ok: true };
+    }
+
+    case 'setYard': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      if (action.use !== 'lock' && action.use !== 'open' && action.use !== 'rent') {
+        return { ok: false, err: 'Bad yard booking' };
+      }
+      team.yardUse = action.use;
       return { ok: true };
     }
 
