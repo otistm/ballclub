@@ -28,6 +28,7 @@ import { sanitizeColor } from './format.js';
 import {
   autoAssignField, fieldComplete, isHitter, rosterReady, scrubTeamAssignments
 } from './lineup.js';
+import { grantSecondChance, sellLocked } from './firing.js';
 
 export type GameAction =
   | { t: 'scenario'; teamId: string; side: 'left' | 'right' }
@@ -59,7 +60,8 @@ export type GameAction =
   | { t: 'offseason' }
   | { t: 'resign'; teamId: string; playerId: string; offer: number; years?: number }
   | { t: 'letgo'; teamId: string; playerId: string }
-  | { t: 'advanceIdle'; idleTeamIds: string[] };
+  | { t: 'advanceIdle'; idleTeamIds: string[] }
+  | { t: 'secondChance'; teamId: string };
 
 /** Envelope stored in the action log / sent over the wire. */
 export interface LoggedAction {
@@ -153,6 +155,9 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       const myOut = me.roster.filter((p) => action.give.indexOf(p.id) >= 0);
       const theirOut = them.roster.filter((p) => action.get.indexOf(p.id) >= 0);
       if (!myOut.length && !theirOut.length) return { ok: false, err: 'Empty deal' };
+      if (sellLocked(league, me) && myOut.length) {
+        return { ok: false, err: 'Ownership froze the roster this year' };
+      }
       if (me.roster.length - myOut.length + theirOut.length > ROSTER_MAX) {
         return { ok: false, err: 'That deal puts you over ' + ROSTER_MAX };
       }
@@ -194,9 +199,10 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
     case 'release': {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
+      if (sellLocked(league, team)) return { ok: false, err: 'Ownership froze the roster this year' };
       const r = release(league, team, action.playerId);
       if (r.ok) scrubTeamAssignments(team);
-      return { ok: r.ok, released: r };
+      return { ok: r.ok, err: r.err, released: r };
     }
 
     case 'scout': {
@@ -307,6 +313,7 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
     case 'letgo': {
       const team = league.teams.find((t) => t.id === action.teamId);
       if (!team) return { ok: false, err: 'No such club' };
+      if (sellLocked(league, team)) return { ok: false, err: 'Ownership froze the roster this year' };
       const r = resign(league, team, action.playerId, 0);
       return { ok: !!r.ok || !!r.lost, err: r.err, resigned: r };
     }
@@ -424,6 +431,9 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       // inbox.give = players leaving the offerer (from); inbox.get = players leaving the receiver (team)
       const theirOut = from.roster.filter((p) => inbox.give.indexOf(p.id) >= 0);
       const myOut = team.roster.filter((p) => inbox.get.indexOf(p.id) >= 0);
+      if (sellLocked(league, team) && myOut.length) {
+        return { ok: false, err: 'Ownership froze the roster this year' };
+      }
       if (theirOut.length !== inbox.give.length || myOut.length !== inbox.get.length) {
         team.inboxTrade = null;
         return { ok: false, err: 'The pieces have moved' };
@@ -474,6 +484,13 @@ export function applyAction(league: League, action: GameAction): ApplyResult {
       if (!ids.length) return { ok: false, err: 'Nobody is idle' };
       const idle = runAdvanceIdle(league, ids);
       return { ok: true, idle };
+    }
+
+    case 'secondChance': {
+      const team = league.teams.find((t) => t.id === action.teamId);
+      if (!team) return { ok: false, err: 'No such club' };
+      const r = grantSecondChance(league, team);
+      return { ok: r.ok, err: r.err };
     }
   }
 }

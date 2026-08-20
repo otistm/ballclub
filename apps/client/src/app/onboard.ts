@@ -35,9 +35,18 @@ export const OB = {
   mode: 'solo' as 'solo' | 'host' | 'join',
   joinCode: '' as string,
   claimId: '' as string,
+  rehire: null as null | 'grace' | 'angry',
   draft: {
     city: '', mascot: '', name: '', color: '#3BA7D6', glyph: 'compass', cls: 'ANALYST', vibe: 'NIGHT', hue: 197
   } as ObDraft,
+
+  beginRehire(angry: boolean): void {
+    OB.rehire = angry ? 'angry' : 'grace';
+    OB.mode = 'solo';
+    OB.signed = false;
+    OB.step = 1;
+    OB.start();
+  },
 
   start(): void {
     const d = OB.draft;
@@ -103,8 +112,14 @@ export const OB = {
     }
 
     if (OB.step === 1) {
+      const rehireNote = OB.rehire === 'angry'
+        ? '<p class="dim" style="margin:0 0 14px">Word travels. This board already has a file on you.</p>'
+        : OB.rehire === 'grace'
+          ? '<p class="dim" style="margin:0 0 14px">The last job ended. You are applying again.</p>'
+          : '';
       body = `<div class="eyebrow">Step one <b>the club</b></div>
         <h1>Name it</h1>
+        ${rehireNote}
         <p class="dim" style="margin:10px 0 20px">The city stays on the jersey long after you are gone.</p>
         <div class="field"><div style="flex:1"><div class="lb">City</div>
           <input id="obcity" value="${esc(d.city)}" maxlength="18" autocomplete="off" spellcheck="false"></div>
@@ -167,8 +182,12 @@ export const OB = {
 
     if (OB.step === 5) {
       const c = CLASSES[d.cls];
+      const angry = OB.rehire === 'angry';
+      const cash = angry ? Math.round(c.cash * 0.72) : c.cash;
+      const trust = angry ? Math.max(14, Math.min(32, Math.round(c.fanTrust * 0.55))) : c.fanTrust;
       body = `<div class="eyebrow">Step five <b>sign here</b></div>
         <h1>The paperwork</h1>
+        ${angry ? '<p class="dim" style="margin:10px 0 0">They read the file. The offer is thinner. The trust is not there yet.</p>' : ''}
         <div class="panel paper" style="margin-top:16px">
           <div class="eyebrow">Club charter</div>
           <div class="charter-club">
@@ -177,8 +196,8 @@ export const OB = {
           </div>
           <div class="hairline"></div>
           <div class="kv"><span class="k">General manager</span><b>${esc(c.name)}</b></div>
-          <div class="kv"><span class="k">Opening cash</span><b>${M(c.cash)}</b></div>
-          <div class="kv"><span class="k">Fan trust</span><b>${c.fanTrust}</b></div>
+          <div class="kv"><span class="k">Opening cash</span><b>${M(cash)}</b></div>
+          <div class="kv"><span class="k">Fan trust</span><b>${trust}</b></div>
           <div class="kv"><span class="k">Roster limit</span><b>${ROSTER_MAX}</b></div>
           <div class="kv"><span class="k">Season</span><b>18 weeks · 54 games</b></div>
           <div class="hairline"></div>
@@ -460,7 +479,8 @@ export const OB = {
     const d = OB.draft;
     return {
       name: d.name, city: d.city, mascot: d.mascot,
-      cls: d.cls, color: d.color, glyph: d.glyph, vibe: d.vibe
+      cls: d.cls, color: d.color, glyph: d.glyph, vibe: d.vibe,
+      skeptical: OB.rehire === 'angry' || undefined
     };
   },
 
@@ -472,6 +492,7 @@ export const OB = {
     const human = OB.humanFromDraft();
     const seed = Math.floor(Math.random() * 1e9);
     haptic.ok();
+    OB.rehire = null;
 
     if (OB.mode === 'host') {
       try {
@@ -579,5 +600,9 @@ export function initOnboarding(): void {
   document.addEventListener('bc:ob', (e) => {
     const det = (e as CustomEvent<{ what: string; data: DOMStringMap }>).detail;
     OB.act(det.what, det.data);
+  });
+  document.addEventListener('bc:rehire', (e) => {
+    const angry = !!(e as CustomEvent<{ angry?: boolean }>).detail?.angry;
+    OB.beginRehire(angry);
   });
 }

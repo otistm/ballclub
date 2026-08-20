@@ -237,6 +237,14 @@ class GameStore {
 
   reset(): void {
     KV.del(SAVE_KEY);
+    this.league = null;
+    this.human = null;
+    this.meId = 't0';
+    this.view = 'club';
+    this.code = null;
+    this.seq = 0;
+    this.log = [];
+    this.echoSkip = null;
   }
 }
 

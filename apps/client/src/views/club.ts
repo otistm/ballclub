@@ -27,7 +27,8 @@ export function nextOpponent(): NextOpp | null {
 function mandateText(L: League, me: Team): string {
   const c = CLASSES[me.cls];
   const gp = me.w + me.l;
-  if (L.phase === 'draft') return 'Fill the roster. Do not come back with a club full of first basemen.';
+  if (me.sellLockSeason === L.season) return 'Probation year. You do not sell a man until October. Play the roster you have.';
+  if (me.boardMood === 'skeptical' && gp === 0) return 'They hired you with a file already open. Finish above .500 or this room closes too.';
   if (gp === 0) return 'They hired you because you said something in the interview that stuck. Finish above .500 and nobody asks what it was.';
   const wp = me.w / gp;
   if (me.cash < 400000) return 'A note from accounting: the cash position is thin. Raise the gate, cut payroll, or sell someone.';

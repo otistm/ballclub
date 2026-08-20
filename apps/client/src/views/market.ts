@@ -286,7 +286,11 @@ export function viewTrade(): string {
     }</p>
     <div class="btn-row">
       <button class="btn ghost" data-act="tclear">Clear</button>
-      <button class="btn primary" data-act="propose">${them.isHuman ? 'Fax the deal · 1 action' : 'Propose · 1 action'}</button>
+      <button class="btn primary" data-act="propose"${me.sellLockSeason === L.season && UI.trade.mine.length ? ' disabled' : ''}>${
+        me.sellLockSeason === L.season && UI.trade.mine.length
+          ? 'Roster frozen this year'
+          : them.isHuman ? 'Fax the deal · 1 action' : 'Propose · 1 action'
+      }</button>
     </div>`;
   } else {
     s += `<div class="empty"><p>Pick at least one player from either side to see what they think.</p></div>`;

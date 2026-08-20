@@ -88,7 +88,11 @@ export function playerSheet(id: string): void {
   </div>`;
 
   if (mine) {
-    s += `<button class="btn danger" data-act="release" data-id="${p.id}">Release · dead money ${M(Math.round(p.salary * 0.35))}</button>`;
+    if (me.sellLockSeason === L.season) {
+      s += `<p class="dim" style="margin-top:12px">Ownership froze sales this year. He stays until October.</p>`;
+    } else {
+      s += `<button class="btn danger" data-act="release" data-id="${p.id}">Release · dead money ${M(Math.round(p.salary * 0.35))}</button>`;
+    }
   } else if (L.freeAgents.some((x) => x.id === id)) {
     s += `<button class="btn primary" data-act="signfa" data-id="${p.id}">Sign · bonus ${M(Math.round(p.salary * 0.5))} · 1 action</button>`;
   }

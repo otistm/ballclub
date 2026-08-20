@@ -31,6 +31,7 @@ export function signFA(league: League, team: Team, playerId: string): SignResult
 
 export interface ReleaseResult {
   ok: boolean;
+  err?: string;
   dead?: number;
 }
 

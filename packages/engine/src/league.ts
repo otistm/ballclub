@@ -140,6 +140,12 @@ export function makeLeague(seed: number, human?: HumanConfig | null): League {
     if (i === 0 && human) {
       t = newTeam(rng, human.city, human.mascot, human.cls, human.color, human.glyph, true, human.vibe);
       t.name = human.name;
+      if (human.skeptical) {
+        t.cash = Math.round(t.cash * 0.72);
+        t.startCash = t.cash;
+        t.fanTrust = Math.max(14, Math.min(32, Math.round(t.fanTrust * 0.55)));
+        t.boardMood = 'skeptical';
+      }
     } else {
       const cls = classes[i % classes.length];
       t = newTeam(rng, names[i + 3], mascots[i + 3], cls, hueColor(RI(rng, 0, 359)), pick(rng, GLYPHS), false, 'NIGHT');

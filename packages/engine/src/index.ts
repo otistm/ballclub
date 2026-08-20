@@ -18,6 +18,7 @@ export * from './offseason.js';
 export * from './format.js';
 export * from './actions.js';
 export * from './protocol.js';
+export * from './firing.js';
 
 export { FIRST, LAST, CITIES, MASCOTS, GLYPHS } from './data/names.js';
 export { CLASSES, CLASS_LIST } from './data/classes.js';

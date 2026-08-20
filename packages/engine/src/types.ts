@@ -421,6 +421,10 @@ export interface Team {
   fieldIds?: Partial<Record<Position, string>> | null;
   /** GM progression; optional so older saves hydrate via ensureProgress() */
   progress?: TeamProgress;
+  /** Season number while ownership has frozen sales / releases / trades out. */
+  sellLockSeason?: number;
+  /** Board posture after a messy exit or a bargained year. */
+  boardMood?: 'skeptical' | 'probation';
 }
 
 export interface DraftSlot {
@@ -562,6 +566,8 @@ export interface HumanConfig {
   color: string;
   glyph: string;
   vibe: string;
+  /** Last job ended loud. The next room already has a file. */
+  skeptical?: boolean;
 }
 
 export interface ShownRating {

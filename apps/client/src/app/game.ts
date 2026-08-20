@@ -5,7 +5,7 @@
  */
 import {
   ACHIEVEMENTS, SKILL_INFO, TROPHIES, VIBES, achievementById, consumeUnlocks, draftCurrent,
-  fieldComplete, HIT_POS, nextScenario, rankTeams, shownOvr, type AutoPick, type FieldPos, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
+  fieldComplete, HIT_POS, nextScenario, orgFired, rankTeams, sellLocked, shownOvr, type AutoPick, type FieldPos, type GameSummary, type MyPbp, type Position, type SkillKey, type StadiumKey
 } from '@ballclub/engine';
 import anime from '../ui/motion.js';
 import { $, closeSheet, esc, openSheet, toast } from '../ui/dom.js';
@@ -138,6 +138,7 @@ export function render(): void {
     wireRosterSort();
   }
   wireLongPress();
+  syncFired();
 }
 
 function updateBadges(): void {
@@ -699,6 +700,11 @@ function proposeTrade(): void {
   const them = L.teams.find((t) => t.id === UI.trade.rival);
   if (!them) return;
   if (!UI.trade.mine.length && !UI.trade.theirs.length) return;
+  if (sellLocked(L, me) && UI.trade.mine.length) {
+    toast('Frozen', 'Ownership shut the sale window this year.', 'bad');
+    haptic.warn();
+    return;
+  }
   const incoming = them.roster
     .filter((p) => UI.trade.theirs.indexOf(p.id) >= 0)
     .map((p) => p.name)
@@ -776,6 +782,13 @@ function doRelease(id: string): void {
   const p = me.roster.find((x) => x.id === id);
   if (!p) return;
   const r = store.dispatch({ t: 'release', teamId: me.id, playerId: id });
+  if (!r.ok) {
+    haptic.warn();
+    toast('No', r.err || 'Ownership froze the roster this year', 'bad');
+    closeSheet();
+    render();
+    return;
+  }
   haptic.warn();
   toast('Released', p.name + ' · dead money ' + M((r.released && r.released.dead) || 0), 'bad');
   closeSheet();
@@ -841,8 +854,72 @@ function doSponsor(name: string): void {
   render();
 }
 
+function syncFired(): void {
+  const el = $('#fired');
+  if (!el || !store.league) return;
+  const on = orgFired(store.league, store.me);
+  el.classList.toggle('on', on);
+  el.setAttribute('aria-hidden', on ? 'false' : 'true');
+  if (on) {
+    closeSheet();
+    const name = $('#fired-club');
+    if (name) name.textContent = store.me.name;
+  }
+}
+
+function leaveJob(angry: boolean): void {
+  closeSheet();
+  const el = $('#fired');
+  if (el) {
+    el.classList.remove('on');
+    el.setAttribute('aria-hidden', 'true');
+  }
+  if (net.mode === 'shared') net.disconnect();
+  net.mode = 'solo';
+  store.reset();
+  $('#app').style.display = 'none';
+  const ob = $('#onboard');
+  ob.style.display = '';
+  ob.style.opacity = '1';
+  document.dispatchEvent(new CustomEvent('bc:rehire', { detail: { angry } }));
+}
+
+function handleFired(act: string): void {
+  if (act === 'fired-leave') {
+    haptic.ok();
+    leaveJob(false);
+    return;
+  }
+  if (act === 'fired-storm') {
+    haptic.warn();
+    leaveJob(true);
+    return;
+  }
+  const me = store.me;
+  const r = store.dispatch({ t: 'secondChance', teamId: me.id });
+  if (!r.ok) {
+    haptic.warn();
+    toast('No', r.err || 'The board is not asking', 'bad');
+    return;
+  }
+  haptic.ok();
+  const el = $('#fired');
+  if (el) {
+    el.classList.remove('on');
+    el.setAttribute('aria-hidden', 'true');
+  }
+  toast('Probation', 'Same club. Short money. You do not sell a man this year.', 'bulb');
+  marquee.flash('ONE MORE YEAR', 2800);
+  go('club');
+  render();
+}
+
 /* ---------- data-act handler ---------- */
 export function handle(act: string, d: DOMStringMap): void {
+  if (act === 'fired-leave' || act === 'fired-storm' || act === 'fired-bargain') {
+    handleFired(act);
+    return;
+  }
   const L = store.league!;
   const me = store.me;
   switch (act) {
@@ -1317,6 +1394,11 @@ export function enterGame(): void {
     targets: '#onboard', opacity: 0, duration: 420, easing: 'easeInQuad',
     complete: () => {
       $('#onboard').style.display = 'none';
+      const fired = $('#fired');
+      if (fired) {
+        fired.classList.remove('on');
+        fired.setAttribute('aria-hidden', 'true');
+      }
     }
   });
   $('#app').style.display = 'flex';

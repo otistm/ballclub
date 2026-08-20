@@ -4,6 +4,7 @@ import { needScore } from './draft.js';
 import { award } from './league.js';
 import { value } from './player.js';
 import { scrubTeamAssignments } from './lineup.js';
+import { sellLocked } from './firing.js';
 import { dealsMul, noteOffice } from './progress.js';
 import type { League, Player, Team } from './types.js';
 
@@ -64,6 +65,7 @@ export function execTrade(
   league: League, myTeam: Team, theirTeam: Team, myOut: Player[], theirOut: Player[], force = false
 ): TradeResult {
   const ev = evalTrade(league, myTeam, theirTeam, myOut, theirOut);
+  if (sellLocked(league, myTeam) && myOut.length) return { ok: false, ev };
   if (!force && !ev.accept) return { ok: false, ev };
   myOut.forEach((p) => {
     myTeam.roster = myTeam.roster.filter((x) => x.id !== p.id);
